@@ -11,14 +11,14 @@ exports.listAllQuizzes = (req, res) => {
 exports.createAQuiz = (req, res) => {
   const newQuiz = new Quiz(req.body);
 
-  newQuiz.save((err, word) => {
+  newQuiz.save((err, quiz) => {
     if (err) res.send(err);
     res.json(quiz);
   });
 };
 
 exports.readAQuiz = (req, res) => {
-  Quiz.findById(req.params.quizId, (err, word) => {
+  Quiz.findById(req.params.quizId, (err, quiz) => {
     if (err) res.send(err);
     res.json(quiz);
   });
@@ -29,9 +29,20 @@ exports.updateAQuiz = (req, res) => {
     { _id: req.params.quizId },
     req.body,
     { new: true },
-    (err, word) => {
+    (err, quiz) => {
       if (err) res.send(err);
       res.json(quiz);
     }
   );
 };
+
+exports.deleteAQuiz = (req, res) => {
+  Quiz.deleteOne({ _id: req.params.quizId },
+  err => {
+    if (err) res.send(err);
+    res.json({
+      message: 'Quiz successfully deleted',
+      _id: req.params.quizId
+    });
+  });
+}

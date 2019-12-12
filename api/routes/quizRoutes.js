@@ -1,18 +1,20 @@
 const quizBuilder = require('../controllers/quizController');
+const express = require('express');
+const router = express.Router();
 
-module.exports = app => {
+// GET /quizzes
+router.get('/', quizBuilder.listAllQuizzes);
 
-  // GET /quizzes
-  // POST /quizzes
-  app
-    .route('/quizzes')
-    .get(quizBuilder.listAllQuizzes)
-    .post(quizBuilder.createAQuiz);
+// POST /quizzes
+router.post('/', quizBuilder.createAQuiz);
 
-  // GET /quizzes/:quizId
-  // POST /quizzes/:quizId
-  app
-    .route('/quizzes/:quizId')
-    .get(quizBuilder.readAQuiz)
-    .put(quizBuilder.updateAQuiz);
-}
+// GET /quizzes/:quizId
+router.get('/:quizId', quizBuilder.readAQuiz);
+
+// POST /quizzes/:quizId
+router.put('/:quizId', quizBuilder.updateAQuiz);
+
+// DELETE /quizzes/:quizId
+router.delete('/:quizId', quizBuilder.deleteAQuiz);
+
+module.exports = router;

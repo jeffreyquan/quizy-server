@@ -4,13 +4,19 @@ const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
 
 global.Quiz = require('./api/models/quizModel');
-const routes = require('./api/routes/quizRoutes');
+global.User = require('./api/models/userModel');
+const quizRouter = require('./api/routes/quizRoutes');
+const userRouter = require('./api/routes/userRoutes');
 
 mongoose.Promise = global.Promise;
 
+const db = `mongodb+srv://jeffreyq:${ process.env.MONGOPW }@quizy-vsn1g.mongodb.net/main?retryWrites=true&w=majority`;
+
 mongoose.set('useFindAndModify', false);
-mongoose.connect(
-  `mongodb+srv://jeffreyq:${ process.env.MONGOPW }@quizy-vsn1g.mongodb.net/test?retryWrites=true&w=majority`, { useNewUrlParser: true }).then(() => console.log('DB connected')).catch(err => console.error(err));
+mongoose
+  .connect(db, { useNewUrlParser: true })
+  .then(() => console.log('DB connected'))
+  .catch(err => console.error(err));
 
 const port = process.env.PORT || 3000;
 
@@ -20,11 +26,12 @@ server.use(cors());
 server.use(bodyParser.urlencoded({ extended: true }));
 server.use(bodyParser.json());
 
-routes(server);
-server.listen(port);
+server.use('/quizzes', quizRouter);
+// routes(server);
+server.listen(port, () => {
+  console.log(`Server listening at http://localhost:${ port }`);
+});
 
 server.use((req, res) => {
   res.status(404).send({ url: req.originalUrl + ' not found' });
 });
-
-console.log(`Server running at http://localhost:${ port }`);
