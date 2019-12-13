@@ -14,11 +14,14 @@ const QuizSchema = new Schema({
     type: Schema.Types.ObjectId, ref: 'User'
   },
   questions: [{
-    body: String,
-    answers: [{
-      body: String,
-    }],
-    correct: Number
+    question: String,
+    answers: {
+      a: String,
+      b: String,
+      c: String,
+      d: String,
+    },
+    correct: String
   }]
 }, { collection: 'quiz' });
 

@@ -2,6 +2,7 @@ const express = require('express')
 const cors = require('cors');
 const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
+const socketIo = require('socket.io');
 
 global.Quiz = require('./api/models/quizModel');
 global.User = require('./api/models/userModel');
