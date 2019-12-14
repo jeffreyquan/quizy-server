@@ -10,6 +10,8 @@ global.User = require('./api/models/userModel');
 const quizRouter = require('./api/routes/quizRoutes');
 const userRouter = require('./api/routes/userRoutes');
 
+const Games = require('./api/games/games');
+
 mongoose.Promise = global.Promise;
 
 const db = `mongodb+srv://jeffreyq:${ process.env.MONGOPW }@quizy-vsn1g.mongodb.net/main?retryWrites=true&w=majority`;
@@ -24,10 +26,10 @@ const port = process.env.PORT || 3000;
 
 const app = express();
 
-// create server
+// create server instance
 const server = http.createServer(app);
 
-// create socket
+// create socket using the instance of the server
 const io = socketIO(server);
 
 app.use(cors());
@@ -43,3 +45,21 @@ server.listen(port, () => {
 app.use((req, res) => {
   res.status(404).send({ url: req.originalUrl + ' not found' });
 });
+
+io.on('connection', socket => {
+  console.log('User connected')
+
+  socket.on('hostJoin', quizId => {
+    console.log( quizId );
+    Quiz.findById(quizId, (err, quiz) => {
+      if (err) console.log(err);
+
+
+    });
+
+  })
+
+  socket.on('disconnect', () => {
+    console.log('User disconnected')
+  })
+})
