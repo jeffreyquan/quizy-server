@@ -2,7 +2,8 @@ const express = require('express')
 const cors = require('cors');
 const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
-const socketIo = require('socket.io');
+const socketIO = require('socket.io');
+const http = require('http');
 
 global.Quiz = require('./api/models/quizModel');
 global.User = require('./api/models/userModel');
@@ -21,18 +22,24 @@ mongoose
 
 const port = process.env.PORT || 3000;
 
-const server = express();
+const app = express();
 
-server.use(cors());
-server.use(bodyParser.urlencoded({ extended: true }));
-server.use(bodyParser.json());
+// create server
+const server = http.createServer(app);
 
-server.use('/quizzes', quizRouter);
-// routes(server);
+// create socket
+const io = socketIO(server);
+
+app.use(cors());
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(bodyParser.json());
+
+app.use('/quizzes', quizRouter);
+
 server.listen(port, () => {
   console.log(`Server listening at http://localhost:${ port }`);
 });
 
-server.use((req, res) => {
+app.use((req, res) => {
   res.status(404).send({ url: req.originalUrl + ' not found' });
 });
