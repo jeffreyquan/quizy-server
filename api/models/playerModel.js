@@ -2,12 +2,27 @@ const mongoose = require('mongoose');
 const { Schema } = mongoose;
 
 const PlayerSchema = new Schema({
-  nickname: {
+  hostId: {
     type: String,
-    required: 'Nickname cannot be blank'
+  },
+  playerId: {
+    type: String
+  },
+  nickname: {
+    type: String
+  },
+  answer: {
+    type: String
   },
   score: {
     type: Number
   },
-  
-})
+  streak: {
+    type: Number
+  },
+  lastCorrect: {
+    type: Boolean
+  }
+}, { collection: 'player' });
+
+module.exports = mongoose.model('Player', PlayerSchema);
