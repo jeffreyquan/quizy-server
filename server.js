@@ -5,6 +5,14 @@ const bodyParser = require('body-parser');
 const socketIO = require('socket.io');
 const http = require('http');
 
+const HOST_JOINED = "HOST_JOINED";
+const HOST_DISCONNECTED = "HOST_DISCONNECTED";
+const SHOW_PIN = "SHOW_PIN";
+const UPDATE_PLAYERS_IN_LOBBY ="UPDATE_PLAYERS_IN_LOBBY";
+const PLAYER_JOINED = "PLAYER_JOINED";
+const GAME_NOT_FOUND = "GAME_NOT_FOUND";
+const QUIZ_DOES_NOT_EXIST = "QUIZ_DOES_NOT_EXIST" // TODO: ADDRESS THIS ON CLIENT SIDE
+
 global.Quiz = require('./api/models/quizModel');
 global.User = require('./api/models/userModel');
 global.Game = require('./api/models/gameModel');
@@ -13,9 +21,6 @@ const quizRouter = require('./api/routes/quizRoutes');
 const userRouter = require('./api/routes/userRoutes');
 const gameRouter = require('./api/routes/gameRoutes');
 const playerRouter = require('./api/routes/playerRoutes');
-
-const Players = require('./api/games/players');
-let players = new Players();
 
 mongoose.Promise = global.Promise;
 
@@ -54,10 +59,10 @@ app.use((req, res) => {
 });
 
 io.on('connection', socket => {
-  console.log('User connected')
+  console.log('User connected with socket id:', socket.id);
 
-  socket.on('hostJoin', quizId => {
-    console.log( quizId );
+  socket.on(HOST_JOINED, quizId => {
+    console.log(`Host has joined the game: ${ quizId }`);
     Quiz.findById(quizId, (err, quiz) => {
       if (err) console.log(err);
 
@@ -65,7 +70,7 @@ io.on('connection', socket => {
 
       if (quiz) {
         let pin = Math.floor(Math.random()*9000000) + 1000000;
-        console.log( quiz._id );
+        // console.log( quiz._id );
         newGame = new Game({
           hostId: socket.id,
           pin: pin,
@@ -78,20 +83,20 @@ io.on('connection', socket => {
 
         newGame.save((err, game) => {
           if (err) console.log(err);
-          console.log( game );
+          console.log('Game created', game );
         })
 
         socket.join(newGame.pin);
 
-        console.log( newGame.pin );
+        console.log('Showing pin for the game:', newGame.pin );
 
-        socket.emit('showPin', {
+        socket.emit(SHOW_PIN, {
           pin: newGame.pin
         })
 
       } else {
 
-        socket.emit('quizDoesNotExist'); // TODO: add code on client side to deal with this
+        socket.emit(QUIZ_DOES_NOT_EXIST); // TODO: add code on client side to deal with this
 
       }
 
@@ -99,9 +104,9 @@ io.on('connection', socket => {
 
   });
 
-  socket.on('playerJoin', data => {
+  socket.on(PLAYER_JOINED, data => {
 
-    console.log( data );
+    console.log('Player attempting to join a game', data);
 
     let gameFound = false;
 
@@ -112,7 +117,7 @@ io.on('connection', socket => {
 
         if (parseInt(data.pin) === games[i].pin) {
 
-          console.log('Player has connected');
+          console.log('Player has successfully connected to the game', data);
 
           const hostId = games[i].hostId;
 
@@ -128,7 +133,7 @@ io.on('connection', socket => {
 
           newPlayer.save((err, player) => {
             if (err) console.log(err);
-            console.log( player );
+            console.log('New player created', player);
             if (player._id) {
               socket.join(data.pin);
 
@@ -137,9 +142,9 @@ io.on('connection', socket => {
               Player.find({ hostId: hostId }, (err, players) => {
                 if (err) console.log(err);
 
-                console.log( players );
+                console.log('All players:', players);
 
-                io.to(data.pin).emit('updatePlayersInLobby', players);
+                io.to(data.pin).emit(UPDATE_PLAYERS_IN_LOBBY, players);
 
                 gameFound = true;
               });
@@ -149,7 +154,7 @@ io.on('connection', socket => {
       }
 
       if (!gameFound) {
-        socket.emit('gameNotFound');
+        socket.emit(GAME_NOT_FOUND);
       }
 
     })
@@ -157,6 +162,65 @@ io.on('connection', socket => {
   });
 
   socket.on('disconnect', () => {
-    console.log('User disconnected')
+    console.log('User disconnected with socket id:', socket.id);
+
+    Game.find({ hostId: socket.id }, (err, game) => {
+      if (err) console.log(err);
+
+      console.log(game.length);
+
+      if (game.length !== 0) {
+
+        const pin = game.pin;
+
+        Game.deleteOne({ _id: game._id }, err => {
+          if (err) console.log(err);
+
+          console.log('Game has been disconnected. Pin:', pin);
+
+          Player.deleteMany({ hostId: game.hostId}, err => {
+            if (err) console.log(err);
+
+            io.to(game.pin).emit(HOST_DISCONNECTED);
+          })
+        })
+
+        socket.leave(pin);
+
+      } else {
+
+        Player.findOne({ playerId: socket.id }, (err, player) => {
+          if (err) console.log(err);
+
+          if (player) {
+
+            const hostId = player.hostId;
+
+            Game.findOne({ hostId: hostId }, (err, game) => {
+              if (err) console.log(err);
+
+              const pin = game.pin;
+
+              if (!game.gameStatus) {
+
+                Player.deleteOne({ playerId: socket.id }, err => {
+                  if (err) console.log(err);
+
+                  Player.find({ hostId: hostId }, (err, players) => {
+                    if (err) console.log(err);
+
+                    console.log('Updated players:', players);
+
+                    io.to(pin).emit(UPDATE_PLAYERS_IN_LOBBY, players);
+
+                    socket.leave(pin);
+                  })
+                })
+              }
+            })
+          }
+        })
+      }
+    })
   })
 })
