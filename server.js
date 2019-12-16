@@ -28,7 +28,7 @@ const db = `mongodb+srv://jeffreyq:${ process.env.MONGOPW }@quizy-vsn1g.mongodb.
 
 mongoose.set('useFindAndModify', false);
 mongoose
-  .connect(db, { useNewUrlParser: true })
+  .connect(db, { useNewUrlParser: true, useUnifiedTopology: true, useCreateIndex: true })
   .then(() => console.log('DB connected'))
   .catch(err => console.error(err));
 
@@ -168,8 +168,6 @@ io.on('connection', socket => {
 
     Game.find({ hostId: socket.id }, (err, game) => {
       if (err) console.log(err);
-
-      console.log(game.length);
 
       if (game.length !== 0) {
 
