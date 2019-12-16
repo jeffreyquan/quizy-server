@@ -16,6 +16,8 @@ const HOST_DISCONNECTED = "HOST_DISCONNECTED";
 const SHOW_PIN = "SHOW_PIN";
 const UPDATE_PLAYERS_IN_LOBBY ="UPDATE_PLAYERS_IN_LOBBY";
 const PLAYER_JOINED = "PLAYER_JOINED";
+const PLAYER_JOINED_SUCCESSFULLY = "PLAYER_JOINED_SUCCESSFULLY";
+const READY = "READY";
 const GAME_NOT_FOUND = "GAME_NOT_FOUND";
 const QUIZ_DOES_NOT_EXIST = "QUIZ_DOES_NOT_EXIST" // TODO: ADDRESS THIS ON CLIENT SIDE
 
@@ -143,7 +145,7 @@ io.on('connection', socket => {
             if (err) console.log(err);
             console.log('New player created', player);
             if (player._id) {
-              socket.join(data.pin);
+              socket.join(parseInt(data.pin));
 
               console.log( hostId );
 
@@ -152,7 +154,7 @@ io.on('connection', socket => {
 
                 console.log('All players:', players);
 
-                io.to(data.pin).emit(UPDATE_PLAYERS_IN_LOBBY, players);
+                io.to(parseInt(data.pin)).emit(UPDATE_PLAYERS_IN_LOBBY, players);
               });
             }
           });
@@ -162,58 +164,63 @@ io.on('connection', socket => {
       console.log(gameFound);
       if (!gameFound) {
         socket.emit(GAME_NOT_FOUND);
+      } else {
+        socket.emit(PLAYER_JOINED_SUCCESSFULLY);
       }
 
     })
 
   });
 
-  socket.on(HOST_STARTED_GAME, pin => {
+  socket.on(HOST_STARTED_GAME, data => {
 
+    console.log('Host started game with pin:', data);
+    const pin = parseInt(data);
     const filter = { hostId: socket.id, pin: pin };
     const update = { gameStatus: true };
 
     Game.findOneAndUpdate(filter, update).populate('quiz').exec((err, game) => {
       if (err) console.log(err);
 
-      // const quizId = game.quiz._id;
-      // const quizName = game.quiz.name;
-      // const numberOfQuestions = game.quiz.questions.length;
-      //
-      // io.to(pin).emit(GAME_INTRO, { quizName: quizName, numberOfQuestions: numberOfQuestion });
+      console.log('Host has started game');
       io.to(pin).emit(GAME_HAS_STARTED);
-
     })
   });
 
   socket.on(FETCH_INTRO, pin => {
 
-    console.log(pin);
+    console.log('Fetching info for room with pin:', pin);
     Game.findOne({ hostId: socket.id, pin: pin }).populate('quiz').exec((err, game) => {
       if (err) console.log(err);
 
-      console.log('Fetching info from this game:', game);
+      console.log('Fetching info for this game');
       const quizId = game.quiz._id;
       const quizName = game.quiz.name;
       const numberOfQuestions = game.quiz.questions.length;
 
-      socket.emit(GAME_INTRO, { quizName: quizName, numberOfQuestions: numberOfQuestions });
+      socket.emit(GAME_INTRO, { quizName: quizName, numberOfQuestions: numberOfQuestions });  io.to(pin).emit(READY);
     })
   });
 
   socket.on(FETCH_QUESTION, pin => {
 
-    const filter = { hostId: socket.id, pin: pin };
+    const filter = { hostId: socket.id, pin: parseInt(pin) };
     const update = { questionShow: true };
 
-    let game = Game.findOneAndUpdate(filter, update).populate('quiz').exec((err, game) => {
+    console.log('Filter', filter);
+
+    Game.findOneAndUpdate(filter, update).populate('quiz').exec((err, game) => {
       if (err) console.log(err);
+
+      console.log(game);
 
       const data = {
         questionNumber: game.questionCount,
-        question: game.quiz.questions[questionNumber - 1],
+        question: game.quiz.questions[game.questionCount - 1],
         totalNumberOfQuestions: game.quiz.questions.length
       };
+
+      console.log('Sending this question:', data);
 
       socket.emit(RECEIVE_QUESTION, data);
     })
