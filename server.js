@@ -40,7 +40,9 @@ const app = express();
 const server = http.createServer(app);
 
 // create socket using the instance of the server
-const io = socketIO(server);
+const io = socketIO(server, {
+  pingTimeout: 60000,
+});
 
 app.use(cors());
 app.use(bodyParser.urlencoded({ extended: true }));
