@@ -5,6 +5,9 @@ const PlayerSchema = new Schema({
   hostId: {
     type: String,
   },
+  pin: {
+    type: Number
+  },
   playerId: {
     type: String
   },

@@ -137,6 +137,7 @@ io.on('connection', socket => {
 
           newPlayer = new Player({
             hostId: hostId,
+            pin: parseInt(data.pin),
             playerId: socket.id,
             nickname: data.nickname,
             answer: '',
@@ -279,12 +280,10 @@ io.on('connection', socket => {
 
       if (game.length !== 0) {
 
-        const pin = game.pin;
-
-        Game.deleteOne({ _id: game._id }, err => {
+        Game.deleteOne({ _id: game[0]._id }, err => {
           if (err) console.log(err);
 
-          console.log('Game has been disconnected. Pin:', pin);
+          console.log('Host has been disconnected. Game has been disconnected. Pin:', game[0].pin);
 
           Player.deleteMany({ hostId: game.hostId}, err => {
             if (err) console.log(err);
@@ -293,7 +292,7 @@ io.on('connection', socket => {
           })
         })
 
-        socket.leave(pin);
+        socket.leave(game.pin);
 
       } else {
 
@@ -302,17 +301,25 @@ io.on('connection', socket => {
 
           if (player) {
 
+            console.log('Player', player);
+
+            Player.deleteOne({ playerId: socket.id }, err => {
+              if (err) console.log(err);
+
+              console.log('Player has disconnected.');
+            })
+
             const hostId = player.hostId;
 
             Game.findOne({ hostId: hostId }, (err, game) => {
               if (err) console.log(err);
 
-              const pin = game.pin;
+              if (game) {
+                const pin = game.pin;
 
-              if (!game.gameStatus) {
+                console.log('pin', pin);
 
-                Player.deleteOne({ playerId: socket.id }, err => {
-                  if (err) console.log(err);
+                if (!game.gameStatus) {
 
                   Player.find({ hostId: hostId }, (err, players) => {
                     if (err) console.log(err);
@@ -323,7 +330,12 @@ io.on('connection', socket => {
 
                     socket.leave(pin);
                   })
-                })
+
+                } else if (game.gameStatus) {
+
+                  socket.leave(pin);
+
+                }
               }
             })
           }
