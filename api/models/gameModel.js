@@ -17,11 +17,11 @@ const GameSchema = new Schema({
   playersAnswered: {
     type: Number
   },
-  questionShow: {
-    type: Boolean
-  },
-  questionCount: {
+  questionNumber: {
     type: Number
+  },
+  questionStatus: {
+    type: Boolean
   }
 }, { collection: 'game' });
 
