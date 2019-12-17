@@ -10,6 +10,9 @@ const HOST_STARTED_GAME = "HOST_STARTED_GAME";
 const GAME_HAS_STARTED = "GAME_HAS_STARTED";
 const GAME_INTRO = "GAME_INTRO";
 const FETCH_INTRO = "FETCH_INTRO";
+// const FETCH_GAME = "FETCH_GAME";
+// const RECEIVE_GAME = "RECEIVE_GAME";
+// NO LONGER REQUIRED -- TO BE PROVIDED IN FETCH GAME AND RECEIVE GAME
 const FETCH_QUESTION = "FETCH_QUESTION";
 const RECEIVE_QUESTION = "RECEIVE_QUESTION";
 const HOST_DISCONNECTED = "HOST_DISCONNECTED";
@@ -18,6 +21,7 @@ const UPDATE_PLAYERS_IN_LOBBY ="UPDATE_PLAYERS_IN_LOBBY";
 const PLAYER_JOINED = "PLAYER_JOINED";
 const PLAYER_JOINED_SUCCESSFULLY = "PLAYER_JOINED_SUCCESSFULLY";
 const READY = "READY";
+const RECEIVE_ANSWER_OPTIONS = "RECEIVE_ANSWER_OPTIONS";
 const GAME_NOT_FOUND = "GAME_NOT_FOUND";
 const QUIZ_DOES_NOT_EXIST = "QUIZ_DOES_NOT_EXIST" // TODO: ADDRESS THIS ON CLIENT SIDE
 
@@ -87,8 +91,8 @@ io.on('connection', socket => {
           quiz: quiz,
           gameStatus: false,
           playersAnswered: 0,
-          questionShow: false,
-          questionCount: 1
+          questionNumber: 1,
+          questionStatus: false
         })
 
         newGame.save((err, game) => {
@@ -135,7 +139,7 @@ io.on('connection', socket => {
             hostId: hostId,
             playerId: socket.id,
             nickname: data.nickname,
-            answer: 'e',
+            answer: '',
             score: 0,
             streak: 0,
             lastCorrect: false
@@ -198,34 +202,74 @@ io.on('connection', socket => {
       const quizName = game.quiz.name;
       const numberOfQuestions = game.quiz.questions.length;
 
-      socket.emit(GAME_INTRO, { quizName: quizName, numberOfQuestions: numberOfQuestions });  io.to(pin).emit(READY);
+      socket.emit(GAME_INTRO, { quizName: quizName, numberOfQuestions: numberOfQuestions });
+
+      io.to(pin).emit(READY);
     })
   });
+
+  // socket.on(FETCH_QUESTION, pin => {
+  //
+  //   const filter = { hostId: socket.id, pin: parseInt(pin) };
+  //   const update = { questionShow: true };
+  //
+  //   console.log('Filter', filter);
+  //
+  //   Game.findOneAndUpdate(filter, update).populate('quiz').exec((err, game) => {
+  //     if (err) console.log(err);
+  //
+  //     console.log(game);
+  //
+  //     const data = {
+  //       questionNumber: game.questionNumber,
+  //       question: game.quiz.questions[game.questionNumber - 1],
+  //       totalNumberOfQuestions: game.quiz.questions.length
+  //     };
+  //
+  //     console.log('Sending this question:', data);
+  //
+  //     socket.emit(RECEIVE_QUESTION, data);
+  //   })
+  //
+  // });
 
   socket.on(FETCH_QUESTION, pin => {
 
-    const filter = { hostId: socket.id, pin: parseInt(pin) };
-    const update = { questionShow: true };
-
-    console.log('Filter', filter);
-
-    Game.findOneAndUpdate(filter, update).populate('quiz').exec((err, game) => {
+    Game.findOne({ hostId: socket.id, pin: parseInt(pin) }).populate('quiz').exec((err, game) => {
       if (err) console.log(err);
 
-      console.log(game);
+      console.log('Fetching info on this game:', game);
+
+      let numberOfPlayers;
+
+      Player.countDocuments({ hostId: socket.id, pin: parseInt(pin) }, (err, count) => {
+        if (err) console.log(err);
+
+        numberOfPlayers = count;
+      })
 
       const data = {
-        questionNumber: game.questionCount,
-        question: game.quiz.questions[game.questionCount - 1],
-        totalNumberOfQuestions: game.quiz.questions.length
-      };
+        questionNumber: game.questionNumber,
+        totalNumberOfQustions: game.quiz.questions.length,
+        question: game.quiz.questions[game.questionNumber - 1],
+        numberOfPlayers: numberOfPlayers
+      }
 
-      console.log('Sending this question:', data);
+      const playData = {
+        questionNumber: game.questionNumber,
+        totalNumberOfQustions: game.quiz.questions.length,
+        answers: game.quiz.questions[game.questionNumber - 1].answers
+      }
 
       socket.emit(RECEIVE_QUESTION, data);
+      console.log('Fetching game data:', data);
+
+      io.to(game.pin).emit(RECEIVE_ANSWER_OPTIONS, playData);
+      console.log('Sending answer options to players:', playData);
     })
 
-  });
+
+  })
 
   socket.on('disconnect', () => {
     console.log('User disconnected with socket id:', socket.id);
