@@ -15,11 +15,19 @@ const FETCH_INTRO = "FETCH_INTRO";
 // NO LONGER REQUIRED -- TO BE PROVIDED IN FETCH GAME AND RECEIVE GAME
 const FETCH_QUESTION = "FETCH_QUESTION";
 const RECEIVE_QUESTION = "RECEIVE_QUESTION";
-const HOST_DISCONNECTED = "HOST_DISCONNECTED";
+const ANSWER_SUBMITTED = "ANSWER_SUBMITTED";
+const UPDATE_PLAYERS_ANSWERED = "UPDATE_PLAYERS_ANSWERED";
+const FETCH_TIME = "FETCH_TIME";
+const TIME = "TIME";
+const ANSWER_RESULT = "ANSWER_RESULT";
+const END_QUESTION = "END_QUESTION";
+const QUESTION_RESULT ="QUESTION_RESULT";
+const HOST_DISCONNECTED = "HOST_DISCONNECTED"; // TODO: ADDRESS THIS ON CLIENT SIDE
 const SHOW_PIN = "SHOW_PIN";
 const UPDATE_PLAYERS_IN_LOBBY ="UPDATE_PLAYERS_IN_LOBBY";
 const PLAYER_JOINED = "PLAYER_JOINED";
 const PLAYER_JOINED_SUCCESSFULLY = "PLAYER_JOINED_SUCCESSFULLY";
+const WAITING_FOR_START = "WAITING_FOR_START";
 const READY = "READY";
 const RECEIVE_ANSWER_OPTIONS = "RECEIVE_ANSWER_OPTIONS";
 const GAME_NOT_FOUND = "GAME_NOT_FOUND";
@@ -154,6 +162,8 @@ io.on('connection', socket => {
 
               console.log( hostId );
 
+              socket.emit(PLAYER_JOINED_SUCCESSFULLY, { nickname: player.nickname, pin: data.pin });
+
               Player.find({ hostId: hostId }, (err, players) => {
                 if (err) console.log(err);
 
@@ -169,22 +179,24 @@ io.on('connection', socket => {
       console.log(gameFound);
       if (!gameFound) {
         socket.emit(GAME_NOT_FOUND);
-      } else {
-        socket.emit(PLAYER_JOINED_SUCCESSFULLY);
       }
 
     })
 
   });
 
+  // socket.on(WAITING_FOR_START, () => {
+  //   Player
+  // })
+
   socket.on(HOST_STARTED_GAME, data => {
 
     console.log('Host started game with pin:', data);
     const pin = parseInt(data);
     const filter = { hostId: socket.id, pin: pin };
-    const update = { gameStatus: true };
+    const update = { gameStatus: true, questionStatus: true };
 
-    Game.findOneAndUpdate(filter, update).populate('quiz').exec((err, game) => {
+    Game.findOneAndUpdate(filter, update, { new: true }).populate('quiz').exec((err, game) => {
       if (err) console.log(err);
 
       console.log('Host has started game');
@@ -205,34 +217,9 @@ io.on('connection', socket => {
 
       socket.emit(GAME_INTRO, { quizName: quizName, numberOfQuestions: numberOfQuestions });
 
-      io.to(pin).emit(READY);
+      io.to(game.pin).emit(READY);
     })
   });
-
-  // socket.on(FETCH_QUESTION, pin => {
-  //
-  //   const filter = { hostId: socket.id, pin: parseInt(pin) };
-  //   const update = { questionShow: true };
-  //
-  //   console.log('Filter', filter);
-  //
-  //   Game.findOneAndUpdate(filter, update).populate('quiz').exec((err, game) => {
-  //     if (err) console.log(err);
-  //
-  //     console.log(game);
-  //
-  //     const data = {
-  //       questionNumber: game.questionNumber,
-  //       question: game.quiz.questions[game.questionNumber - 1],
-  //       totalNumberOfQuestions: game.quiz.questions.length
-  //     };
-  //
-  //     console.log('Sending this question:', data);
-  //
-  //     socket.emit(RECEIVE_QUESTION, data);
-  //   })
-  //
-  // });
 
   socket.on(FETCH_QUESTION, pin => {
 
@@ -246,6 +233,7 @@ io.on('connection', socket => {
       Player.countDocuments({ hostId: socket.id, pin: parseInt(pin) }, (err, count) => {
         if (err) console.log(err);
 
+        console.log(count);
         numberOfPlayers = count;
       })
 
@@ -268,9 +256,186 @@ io.on('connection', socket => {
       io.to(game.pin).emit(RECEIVE_ANSWER_OPTIONS, playData);
       console.log('Sending answer options to players:', playData);
     })
+  });
 
+  socket.on(ANSWER_SUBMITTED, data => {
+
+    const { answer, pin } = data;
+    const filter = { playerId: socket.id, pin: parseInt(pin) };
+
+    console.log(filter);
+
+    Player.findOne(filter, (err, player) => {
+      if (err) console.log(err);
+
+      console.log('Dislaying player who answered', player);
+      const hostId = player.hostId;
+
+      Player.countDocuments({ hostId: hostId, pin: parseInt(pin) }, (err, count) => {
+        if (err) console.log(err);
+
+        let numberOfPlayers = count;
+
+        Game.findOne({ hostId: hostId, pin: parseInt(pin) }).populate('quiz').exec((err, game) => {
+          if (err) console.log(err);
+
+          console.log('Displaying game', game);
+          const correctAnswer = game.quiz.questions[game.questionNumber - 1].correct;
+
+          if (game.questionStatus) {
+
+            let score;
+            let lastCorrect;
+            let streak;
+            if (data.answer === correctAnswer) {
+              score = player.score + 200;
+              io.to(game.pin).emit(FETCH_TIME, socket.id);
+              socket.emit(ANSWER_RESULT, true);
+              lastCorrect = true;
+              streak = player.streak + 1;
+            } else {
+              score = player.score;
+              lastCorrect = false;
+              streak = 0;
+              // socket.emit(ANSWER_RESULT, false); // PROBABLY DON'T NEED THIS
+            }
+
+            const update = { answer: answer, score: score, lastCorrect: lastCorrect, streak: streak };
+            console.log('Update to player', update);
+            Player.findOneAndUpdate(filter, update, { new: true }).exec((err, p) => {
+              if (err) console.log(err);
+
+              console.log('Player answer successfully submitted.');
+
+              const playersAnswered = game.playersAnswered + 1;
+              console.log('Updating players answered to:', playersAnswered);
+
+              Game.findOneAndUpdate({ _id: game._id }, { playersAnswered: playersAnswered }, { new: true }, (err, g) => {
+                if (err) console.log(err);
+
+                console.log('Updated game:', g);
+                console.log('Updated number of players who answered.');
+                io.to(g.pin).emit(UPDATE_PLAYERS_ANSWERED, playersAnswered);
+
+                console.log('Game is showing players answered', g.playersAnswered, 'Total number of players count:', numberOfPlayers);
+                if (g.playersAnswered === numberOfPlayers) {
+
+                  Game.findOneAndUpdate({ _id: game._id }, { questionStatus: false }, { new: true }, (err, res) => {
+                    if (err) console.log(err);
+
+                    console.log('All players have answered');
+
+                    Player.find({ hostId: hostId, pin: parseInt(pin) }, (err, players) => {
+                      if (err) console.log(err);
+
+                      let answeredA = 0;
+                      let answeredB = 0;
+                      let answeredC = 0;
+                      let answeredD = 0;
+
+                      for (let i = 0; i < players.length; i++) {
+                        if (players[i].answer === 'a') {
+                          answeredA += 1;
+                        } else if (players[i].answer === 'b') {
+                          answeredB += 1;
+                        } else if (players[i].answer === 'c') {
+                          answeredC += 1;
+                        } else if (players[i].answer === 'd') {
+                          answeredD += 1;
+                        }
+                      }
+
+                      const data = {
+                        answeredA: answeredA,
+                        answeredB: answeredB,
+                        answeredC: answeredC,
+                        answeredD: answeredD,
+                        correctAnswer: correctAnswer
+                      }
+
+                      io.to(game.pin).emit(QUESTION_RESULT, data);
+                    })
+                  });
+                }
+              })
+            })
+          }
+        })
+      })
+    })
+
+  });
+
+  socket.on(TIME, data => {
+    const { pin, playerId, time } = data;
+    const filter = { playerId: playerId, pin: pin };
+
+    let score = time * 100;
+
+    Player.findOne(filter, (err, player) => {
+      if (err) console.log(err);
+
+      score += player.score;
+    })
+
+    const update = { score: score };
+    console.log('New score:', score);
+
+    Player.findOneAndUpdate(filter, update, { new: true}, (err, player) => {
+      if (err) console.log(err);
+
+      console.log('Player score successfully updated with time points');
+    })
+  });
+
+  socket.on(END_QUESTION, data => {
+
+    const pin = parseInt(data);
+
+    const filter = { hostId: socket.id, pin: pin };
+    const update = { questionStatus: false };
+
+    Game.findOneAndUpdate(filter, update, { new: true }).populate('quiz').exec((err, game) => {
+      if (err) console.log(err);
+
+      console.log('Question has ended.');
+
+      let correctAnswer = game.quiz.questions[game.questionNumber - 1];
+
+      Player.find(filter, (err, players) => {
+        if (err) console.log(err);
+
+        let answeredA = 0;
+        let answeredB = 0;
+        let answeredC = 0;
+        let answeredD = 0;
+
+        for (let i = 0; i < players.length; i++) {
+          if (players[i].answer === 'a') {
+            answeredA += 1;
+          } else if (players[i].answer === 'b') {
+            answeredB += 1;
+          } else if (players[i].answer === 'c') {
+            answeredC += 1;
+          } else if (players[i].answer === 'd') {
+            answeredD += 1;
+          }
+        }
+
+        const data = {
+          answeredA: answeredA,
+          answeredB: answeredB,
+          answeredC: answeredC,
+          answeredD: answeredD,
+          correctAnswer: correctAnswer
+        }
+
+        io.to(game.pin).emit(QUESTION_RESULT, data);
+      })
+    })
 
   })
+
 
   socket.on('disconnect', () => {
     console.log('User disconnected with socket id:', socket.id);
