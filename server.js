@@ -20,8 +20,10 @@ const UPDATE_PLAYERS_ANSWERED = "UPDATE_PLAYERS_ANSWERED";
 const FETCH_TIME = "FETCH_TIME";
 const TIME = "TIME";
 const ANSWER_RESULT = "ANSWER_RESULT";
-const END_QUESTION = "END_QUESTION";
+const QUESTION_END = "QUESTION_END";
 const QUESTION_RESULT ="QUESTION_RESULT";
+const FETCH_SCORE = "FETCH_SCORE";
+const PLAYER_RESULTS = "PLAYER_RESULTS";
 const HOST_DISCONNECTED = "HOST_DISCONNECTED"; // TODO: ADDRESS THIS ON CLIENT SIDE
 const SHOW_PIN = "SHOW_PIN";
 const UPDATE_PLAYERS_IN_LOBBY ="UPDATE_PLAYERS_IN_LOBBY";
@@ -151,7 +153,9 @@ io.on('connection', socket => {
             answer: '',
             score: 0,
             streak: 0,
-            lastCorrect: false
+            rank: 0,
+            lastCorrect: false,
+            totalCorrect: 0
           })
 
           newPlayer.save((err, player) => {
@@ -218,6 +222,7 @@ io.on('connection', socket => {
       socket.emit(GAME_INTRO, { quizName: quizName, numberOfQuestions: numberOfQuestions });
 
       io.to(game.pin).emit(READY);
+      console.log('Ready message has been emitted -- game is about to start');
     })
   });
 
@@ -239,14 +244,14 @@ io.on('connection', socket => {
 
       const data = {
         questionNumber: game.questionNumber,
-        totalNumberOfQustions: game.quiz.questions.length,
+        totalNumberOfQuestions: game.quiz.questions.length,
         question: game.quiz.questions[game.questionNumber - 1],
         numberOfPlayers: numberOfPlayers
       }
 
       const playData = {
         questionNumber: game.questionNumber,
-        totalNumberOfQustions: game.quiz.questions.length,
+        totalNumberOfQuestions: game.quiz.questions.length,
         answers: game.quiz.questions[game.questionNumber - 1].answers
       }
 
@@ -261,9 +266,10 @@ io.on('connection', socket => {
   socket.on(ANSWER_SUBMITTED, data => {
 
     const { answer, pin } = data;
+
     const filter = { playerId: socket.id, pin: parseInt(pin) };
 
-    console.log(filter);
+    console.log(`Player ${ socket.id } has submitted ${ answer } to game ${ pin }`);
 
     Player.findOne(filter, (err, player) => {
       if (err) console.log(err);
@@ -287,20 +293,23 @@ io.on('connection', socket => {
             let score;
             let lastCorrect;
             let streak;
+            let totalCorrect;
             if (data.answer === correctAnswer) {
               score = player.score + 200;
               io.to(game.pin).emit(FETCH_TIME, socket.id);
-              socket.emit(ANSWER_RESULT, true);
+              // socket.emit(ANSWER_RESULT, true); // MAYBE NEED TO MOVE THIS TO INCLUDE STREAK, ETC.
               lastCorrect = true;
               streak = player.streak + 1;
+              totalCorrect = player.totalCorrect + 1;
             } else {
               score = player.score;
               lastCorrect = false;
               streak = 0;
+              totalCorrect = player.totalCorrect;
               // socket.emit(ANSWER_RESULT, false); // PROBABLY DON'T NEED THIS
             }
 
-            const update = { answer: answer, score: score, lastCorrect: lastCorrect, streak: streak };
+            const update = { answer: answer, score: score, lastCorrect: lastCorrect, streak: streak, totalCorrect: totalCorrect };
             console.log('Update to player', update);
             Player.findOneAndUpdate(filter, update, { new: true }).exec((err, p) => {
               if (err) console.log(err);
@@ -323,7 +332,7 @@ io.on('connection', socket => {
                   Game.findOneAndUpdate({ _id: game._id }, { questionStatus: false }, { new: true }, (err, res) => {
                     if (err) console.log(err);
 
-                    console.log('All players have answered');
+                    console.log('All players have answered.');
 
                     Player.find({ hostId: hostId, pin: parseInt(pin) }, (err, players) => {
                       if (err) console.log(err);
@@ -332,6 +341,8 @@ io.on('connection', socket => {
                       let answeredB = 0;
                       let answeredC = 0;
                       let answeredD = 0;
+
+                      console.log('Fetching all players who have answered: ', players);
 
                       for (let i = 0; i < players.length; i++) {
                         if (players[i].answer === 'a') {
@@ -388,7 +399,7 @@ io.on('connection', socket => {
     })
   });
 
-  socket.on(END_QUESTION, data => {
+  socket.on(QUESTION_END, data => {
 
     const pin = parseInt(data);
 
@@ -422,7 +433,7 @@ io.on('connection', socket => {
           }
         }
 
-        const data = {
+        const info = {
           answeredA: answeredA,
           answeredB: answeredB,
           answeredC: answeredC,
@@ -430,12 +441,52 @@ io.on('connection', socket => {
           correctAnswer: correctAnswer
         }
 
-        io.to(game.pin).emit(QUESTION_RESULT, data);
+        io.to(game.pin).emit(QUESTION_RESULT, info);
       })
     })
 
-  })
+  });
 
+  socket.on(FETCH_SCORE, info => {
+    const { nickname, pin } = info;
+    console.log(`Player ${ nickname } fetching score for game with pin ${ pin }`);
+    const filter = { playerId: socket.id, pin: pin };
+    Player.findOne(filter, (err, player) => {
+      if (err) console.log(err);
+
+      const hostId = player.hostId;
+      const playerScore = player.score;
+
+      Player.find({ hostId: hostId, pin: pin }, (err, players) => {
+        if (err) console.log(err);
+
+        let scores = [];
+        for (let i = 0; i < players.length; i++) {
+          scores.push(players[i].score);
+        }
+
+        const sortedScores = scores.sort((a, b) => b - a);
+        const rank = sortedScores.indexOf(playerScore) + 1;
+
+        const update = { rank: rank };
+
+        Player.findOneAndUpdate(filter, update, { new: true }).exec((err, p) => {
+          if (err) console.log(err);
+
+          const data = {
+            score: p.score,
+            rank: p.rank,
+            streak: p.streak,
+            lastCorrect: p.lastCorrect
+          }
+
+          socket.emit(PLAYER_RESULTS, data);
+
+          console.log('Player answer successfully submitted.');
+        })
+      })
+    });
+  });
 
   socket.on('disconnect', () => {
     console.log('User disconnected with socket id:', socket.id);
