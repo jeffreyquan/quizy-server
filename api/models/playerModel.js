@@ -23,8 +23,14 @@ const PlayerSchema = new Schema({
   streak: {
     type: Number
   },
+  rank: {
+    type: Number
+  },
   lastCorrect: {
     type: Boolean
+  },
+  totalCorrect: {
+    type: Number
   }
 }, { collection: 'player' });
 
