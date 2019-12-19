@@ -80,7 +80,7 @@ const io = socketIO(server, {
 
 // io.origins('*:*')
 
-var whitelist = ['http://example1.com', 'http://example2.com']
+var whitelist = ['http://localhost:3000', 'https://jeffreyquan.github.io/quizy-client/#/', 'https://jeffreyquan.github.io/quizy-client/']
 var corsOptions = {
   origin: function (origin, callback) {
     if (whitelist.indexOf(origin) !== -1) {
