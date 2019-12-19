@@ -83,16 +83,7 @@ const io = socketIO(server, {
 
 // io.origins('*:*')
 
-var whitelist = ['http://localhost:3000', 'https://jeffreyquan.github.io/quizy-client/#/', 'https://jeffreyquan.github.io/quizy-client/']
-var corsOptions = {
-  origin: function (origin, callback) {
-    if (whitelist.indexOf(origin) !== -1) {
-      callback(null, true)
-    } else {
-      callback(new Error('Not allowed by CORS'))
-    }
-  }
-}
+io.origins(['http://localhost:3000', 'https://jeffreyquan.github.io/quizy-client/#/', 'https://jeffreyquan.github.io/quizy-client/']);
 
 app.use(cors(corsOptions));
 app.use(bodyParser.urlencoded({ extended: true }));
