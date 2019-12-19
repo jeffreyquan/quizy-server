@@ -78,7 +78,7 @@ const server = http.createServer(app);
 // create socket using the instance of the server
 const io = socketIO(server, {
   pingTimeout: 60000,
-  origins:('*:*')
+  origins: '*:*'
 });
 
 // io.origins('*:*')
