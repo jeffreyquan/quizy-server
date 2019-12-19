@@ -2,8 +2,8 @@ const express = require('express')
 const cors = require('cors');
 const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
+const socketIO = require('socket.io');
 const http = require('http');
-const socketIO = require('socket.io')(http);
 
 const HOST_JOINED = "HOST_JOINED";
 const HOST_STARTED_GAME = "HOST_STARTED_GAME";
@@ -72,22 +72,15 @@ const port = process.env.PORT || 3000;
 
 const app = express();
 
-const server = app.listen(port);
+const server = http.createServer(app);
 
-// const server = http.createServer(app);
-
-const allowedOrigins = "https://jeffreyquan.github.io/quizy-client/"
-
-const io = socketIO.listen(server, {
-  pingTimeout: 60000,
-  origins: allowedOrigins
+const io = socketIO(server, {
+  pingTimeout: 60000
 });
 
 // io.origins('*:*')
 
-io.origins(['http://localhost:3000', 'https://jeffreyquan.github.io/quizy-client/#/', 'https://jeffreyquan.github.io/quizy-client/']);
-
-app.use(cors(corsOptions));
+app.use(cors());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 
@@ -95,9 +88,9 @@ app.use('/quizzes', quizRouter);
 app.use('/games', gameRouter);
 app.use('/players', gameRouter);
 
-// server.listen(port, () => {
-//   console.log(`Server listening at http://localhost:${ port }`);
-// });
+server.listen(port, () => {
+  console.log(`Server listening at http://localhost:${ port }`);
+});
 
 app.use((req, res) => {
   res.status(404).send({ url: req.originalUrl + ' not found' });
