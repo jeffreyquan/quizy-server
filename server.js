@@ -76,7 +76,7 @@ const server = http.createServer(app);
 
 const allowedOrigins = "https://jeffreyquan.github.io/quizy-client/"
 
-const io = socketIO(server, {
+const io = socketIO.listen(server, {
   pingTimeout: 60000,
   origins: allowedOrigins
 });
@@ -93,9 +93,9 @@ app.use('/quizzes', quizRouter);
 app.use('/games', gameRouter);
 app.use('/players', gameRouter);
 
-server.listen(port, () => {
-  console.log(`Server listening at http://localhost:${ port }`);
-});
+// server.listen(port, () => {
+//   console.log(`Server listening at http://localhost:${ port }`);
+// });
 
 app.use((req, res) => {
   res.status(404).send({ url: req.originalUrl + ' not found' });
