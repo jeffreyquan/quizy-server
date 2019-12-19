@@ -2,8 +2,8 @@ const express = require('express')
 const cors = require('cors');
 const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
-const socketIO = require('socket.io');
 const http = require('http');
+const socketIO = require('socket.io')(http);
 
 const HOST_JOINED = "HOST_JOINED";
 const HOST_STARTED_GAME = "HOST_STARTED_GAME";
@@ -72,7 +72,9 @@ const port = process.env.PORT || 3000;
 
 const app = express();
 
-const server = http.createServer(app);
+const server = app.listen(port);
+
+// const server = http.createServer(app);
 
 const allowedOrigins = "https://jeffreyquan.github.io/quizy-client/"
 
