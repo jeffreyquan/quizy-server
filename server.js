@@ -78,17 +78,14 @@ const server = http.createServer(app);
 // create socket using the instance of the server
 const io = socketIO(server, {
   pingTimeout: 60000,
-  handlePreflightRequest: (req, res) => {
-        const headers = {
-            "Access-Control-Allow-Headers": "Content-Type, Authorization",
-            "Access-Control-Allow-Origin": req.headers.origin, //or the specific origin you want to give access to,
-            "Access-Control-Allow-Credentials": true
-        };
-        res.writeHead(200, headers);
-        res.end();
-    }
 });
 
+io.origins((origin, callback) => {
+  if (origin !== 'http://localhost:3000/') {
+    return callback('origin not allowed', false);
+  }
+  callback(null, true);
+});
 // io.origins('*:*')
 
 app.use(cors());
