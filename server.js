@@ -74,8 +74,11 @@ const app = express();
 
 const server = http.createServer(app);
 
+const allowedOrigins = "https://jeffreyquan.github.io/quizy-client/"
+
 const io = socketIO(server, {
-  pingTimeout: 60000
+  pingTimeout: 60000,
+  origins: allowedOrigins
 });
 
 // io.origins('*:*')
