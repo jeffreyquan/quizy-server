@@ -738,12 +738,12 @@ io.on('connection', socket => {
                   Player.find({ hostId: hostId }, (err, players) => {
                     if (err) console.log(err);
 
-                    console.log('Updated players:', players);
-
                     const playersData = {
                       players: players,
                       playersCount: players.length
                     }
+
+                    console.log('Updated players in lobby', playersData);
 
                     io.to(pin).emit(UPDATE_PLAYERS_IN_LOBBY, players);
 
