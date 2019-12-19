@@ -9,6 +9,8 @@ const HOST_JOINED = "HOST_JOINED";
 const HOST_STARTED_GAME = "HOST_STARTED_GAME";
 const GAME_HAS_STARTED = "GAME_HAS_STARTED";
 const GAME_INTRO = "GAME_INTRO";
+const FETCH_NUMBER_OF_QUESTIONS = "FETCH_NUMBER_OF_QUESTIONS";
+const RECEIVE_NUMBER_OF_QUESTIONS = "RECEIVE_NUMBER_OF_QUESTIONS";
 const FETCH_INTRO = "FETCH_INTRO";
 // const FETCH_GAME = "FETCH_GAME";
 // const RECEIVE_GAME = "RECEIVE_GAME";
@@ -184,8 +186,12 @@ io.on('connection', socket => {
                 if (err) console.log(err);
 
                 console.log('All players:', players);
+                const playersData = {
+                  players: players,
+                  playersCount: players.length
+                }
 
-                io.to(parseInt(data.pin)).emit(UPDATE_PLAYERS_IN_LOBBY, players);
+                io.to(parseInt(data.pin)).emit(UPDATE_PLAYERS_IN_LOBBY, playersData);
               });
             }
           });
@@ -236,6 +242,24 @@ io.on('connection', socket => {
       console.log('Ready message has been emitted -- game is about to start');
     })
   });
+
+  socket.on(FETCH_NUMBER_OF_QUESTIONS, pin => {
+
+    Player.findOne({ playerId: socket.id, pin: parseInt(pin) }, (err, player) => {
+      if (err) console.log(err);
+
+      console.log('Player fetching no of questions', player);
+      const hostId = player.hostId;
+
+      Game.findOne({ hostId: hostId, pin: parseInt(pin) }).populate('quiz').exec((err, game) => {
+        if (err) console.log(err);
+
+        const numberOfQuestions = game.quiz.questions.length;
+
+        socket.emit(RECEIVE_NUMBER_OF_QUESTIONS, numberOfQuestions);
+      })
+    })
+  })
 
   socket.on(FETCH_QUESTION, pin => {
 
@@ -417,19 +441,23 @@ io.on('connection', socket => {
 
     const pin = parseInt(data);
 
-    const filterGame = { hostId: socket.id, pin: pin };
-    const updateGame = { questionStatus: false };
+    const filter = { hostId: socket.id, pin: pin };
+    const update = { questionStatus: false };
     const filterPlayers = { hostId: socket.id, pin: pin, answer: null };
     const updatePlayers = { lastCorrect: false, streak: 0 };
 
-    Players.updateMany(filterPlayers, updatePlayers);
+    Player.updateMany(filterPlayers, updatePlayers, (err, players) => {
+      if (err) console.log(err);
 
-    Game.findOneAndUpdate(filterGame, updateGame, { new: true }).populate('quiz').exec((err, game) => {
+      console.log(`'Question has ended. Update to those who haven't answered. Matches ${ players.n }, updated ${ players.nModified }`);
+    });
+
+    Game.findOneAndUpdate(filter, update, { new: true }).populate('quiz').exec((err, game) => {
       if (err) console.log(err);
 
       console.log('Question has ended.');
 
-      let correctAnswer = game.quiz.questions[game.questionNumber - 1];
+      let correctAnswer = game.quiz.questions[game.questionNumber - 1].correct;
 
       Player.find(filter, (err, players) => {
         if (err) console.log(err);
@@ -458,6 +486,8 @@ io.on('connection', socket => {
           answeredD: answeredD,
           correctAnswer: correctAnswer
         }
+
+        console.log('Time is up, here are the results: ', info);
 
         io.to(game.pin).emit(QUESTION_RESULT, info);
       })
@@ -542,87 +572,90 @@ io.on('connection', socket => {
 
   socket.on(FETCH_NEXT_QUESTION, data => {
 
+    console.log('Fetching next question for game: ', data);
     const { pin, questionNumber } = data;
-    const filter = { hostId: socket.id, pin: pin };
+    const filter = { hostId: socket.id, pin: parseInt(pin) };
+    const updatePlayer = { answer: null, lastCorrect: false };
 
-    Player.updateMany(filter, { answer: null });
+    Player.updateMany(filter, updatePlayer, (err, players) => {
+      if (err) console.log(err);
 
-    console.log('Next question', filter);
+      console.log('Updated players: ', players);
+      console.log(`Number of matches ${ players.n } and number of player updated ${ players.nModified }`);
+    });
+
+    console.log('Next question for game: ', filter);
     const update = { questionNumber: questionNumber, questionStatus: true, playersAnswered: 0 }
 
     Game.findOneAndUpdate(filter, update, { new: true }).populate('quiz').exec((err, game) => {
       if (err) console.log(err);
 
-      console.log('Attemping to fetch the next question');
-
-      console.log(game);
-
-      let numberOfPlayers;
+      console.log('Attempting to fetch the next question.');
 
       Player.countDocuments({ hostId: socket.id, pin: parseInt(pin) }, (err, count) => {
         if (err) console.log(err);
 
-        console.log('Next question -- number of playrs: ', count);
-        numberOfPlayers = count;
-      })
+        console.log('Next question -- number of players: ', count);
+        let numberOfPlayers = count;
 
-      let nextQuestionHost;
-      let nextQuestionPlayer;
-      const numberOfQuestions = game.quiz.questions.length;
+        let nextQuestionHost;
+        let nextQuestionPlayer;
+        const numberOfQuestions = game.quiz.questions.length;
 
-      if (questionNumber <= numberOfQuestions) {
+        if (questionNumber <= numberOfQuestions) {
 
-        const nextQuestionHost = {
-          questionNumber: game.questionNumber,
-          question: game.quiz.questions[questionNumber - 1],
-          numberOfPlayers: numberOfPlayers
-        }
+          const nextQuestionHost = {
+            questionNumber: game.questionNumber,
+            question: game.quiz.questions[questionNumber - 1],
+            numberOfPlayers: numberOfPlayers
+          }
 
-        const nextQuestionPlayer = {
-          questionNumber: game.questionNumber,
-          totalNumberOfQuestions: numberOfQuestions,
-          answers: game.quiz.questions[game.questionNumber - 1].answers
-        }
+          const nextQuestionPlayer = {
+            questionNumber: game.questionNumber,
+            totalNumberOfQuestions: numberOfQuestions,
+            answers: game.quiz.questions[game.questionNumber - 1].answers
+          }
 
-        socket.emit(NEXT_QUESTION, nextQuestionHost);
-        console.log('Sending next question to host:', nextQuestionHost);
+          socket.emit(NEXT_QUESTION, nextQuestionHost);
+          console.log('Sending next question to host:', nextQuestionHost);
 
-        io.to(game.pin).emit(RECEIVE_NEXT_ANSWER_OPTIONS, nextQuestionPlayer);
-        console.log('Sending next answer options to players: ', nextQuestionPlayer);
+          io.to(game.pin).emit(RECEIVE_NEXT_ANSWER_OPTIONS, nextQuestionPlayer);
+          console.log('Sending next answer options to players: ', nextQuestionPlayer);
 
-      } else {
+        } else {
 
-        Game.findOneAndUpdate(filter, { gameStatus: false }, { new: true }).populate('quiz').exec((err, game) => {
-          if (err) console.log(err);
-
-          console.log('Game is over now.');
-
-          Player.find(filter, (err, players) => {
+          Game.findOneAndUpdate(filter, { gameStatus: false }, { new: true }).populate('quiz').exec((err, game) => {
             if (err) console.log(err);
 
-            let playerScores = [];
-            for (let i = 0; i < players.length; i++) {
-              const temp = {
-                nickname: players[i].nickname,
-                score: players[i].score
+            console.log('Game is over now.');
+
+            Player.find(filter, (err, players) => {
+              if (err) console.log(err);
+
+              let playerScores = [];
+              for (let i = 0; i < players.length; i++) {
+                const temp = {
+                  nickname: players[i].nickname,
+                  score: players[i].score
+                }
+                playerScores.push(temp);
               }
-              playerScores.push(temp);
-            }
 
-            const sortedPlayerScores = playerScores.filter(({ score }) => score !== null ).sort((x, y) => y.score - x.score).map((x, i) => Object.assign({ rank: i + 1}, x));
+              const sortedPlayerScores = playerScores.filter(({ score }) => score !== null ).sort((x, y) => y.score - x.score).map((x, i) => Object.assign({ rank: i + 1}, x));
 
-            let finalRankings;
+              let finalRankings;
 
-            if (sortedPlayerScores.length <= 3) {
-              finalRankings = sortedPlayerScores;
-            } else {
-              finalRankings = sortedPlayerScores.slice(0, 3);
-            }
+              if (sortedPlayerScores.length <= 3) {
+                finalRankings = sortedPlayerScores;
+              } else {
+                finalRankings = sortedPlayerScores.slice(0, 3);
+              }
 
-            io.to(game.pin).emit(GAME_OVER, finalRankings);
+              io.to(game.pin).emit(GAME_OVER, finalRankings);
+            })
           })
-        })
-      }
+        }
+      })
     })
   });
 
@@ -703,6 +736,11 @@ io.on('connection', socket => {
                     if (err) console.log(err);
 
                     console.log('Updated players:', players);
+
+                    const playersData = {
+                      players: players,
+                      playersCount: players.length
+                    }
 
                     io.to(pin).emit(UPDATE_PLAYERS_IN_LOBBY, players);
 
