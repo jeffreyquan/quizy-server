@@ -68,7 +68,7 @@ mongoose
   .then(() => console.log('DB connected'))
   .catch(err => console.error(err));
 
-const port = process.env.PORT || 3000;
+// const port = process.env.PORT || 3000;
 
 const app = express();
 
@@ -88,9 +88,9 @@ app.use('/quizzes', quizRouter);
 app.use('/games', gameRouter);
 app.use('/players', gameRouter);
 
-server.listen(port, () => {
-  console.log(`Server listening at http://localhost:${ port }`);
-});
+// server.listen(port, () => {
+//   console.log(`Server listening at http://localhost:${ port }`);
+// });
 
 app.use((req, res) => {
   res.status(404).send({ url: req.originalUrl + ' not found' });
