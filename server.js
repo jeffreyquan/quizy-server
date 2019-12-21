@@ -79,17 +79,20 @@ const io = socketIO(server, {
   pingTimeout: 60000
 });
 
-// io.origins('*:*');
-io.origins((origin, callback) => {
-  if (origin !== 'https://jeffreyquan.github.io') {
-    return callback('origin not allowed', false);
-  } else if (origin !== 'http://localhost:3333') {
-    return callback('origin not allowed', false);
+let whitelist = ['https://jeffreyquan.github.io', 'http://localhost:3333']
+var corsOptions = {
+  origin: function (origin, callback) {
+    if (whitelist.indexOf(origin) !== -1) {
+      callback(null, true)
+    } else {
+      callback(new Error('Not allowed by CORS'))
+    }
   }
-  callback(null, true);
-});
+}
 
-app.use(cors());
+// io.origins('*:*');
+
+app.use(cors(corsOptions));
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 
