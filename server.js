@@ -742,7 +742,7 @@ io.on('connection', socket => {
 
                     console.log('Updated players in lobby', playersData);
 
-                    io.to(pin).emit(UPDATE_PLAYERS_IN_LOBBY, players);
+                    io.to(pin).emit(UPDATE_PLAYERS_IN_LOBBY, playersData);
 
                     socket.leave(pin);
                   })
