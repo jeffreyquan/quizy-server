@@ -79,7 +79,15 @@ const io = socketIO(server, {
   pingTimeout: 60000
 });
 
-io.origins('*:*');
+// io.origins('*:*');
+io.origins((origin, callback) => {
+  if (origin !== 'https://jeffreyquan.github.io/quizy-client') {
+    return callback('origin not allowed', false);
+  } else if (origin !== 'http://localhost:3333/') {
+    return callback('origin not allowed', false);
+  }
+  callback(null, true);
+});
 
 app.use(cors());
 app.use(bodyParser.urlencoded({ extended: true }));
