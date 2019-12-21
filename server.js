@@ -81,9 +81,9 @@ const io = socketIO(server, {
 
 // io.origins('*:*');
 io.origins((origin, callback) => {
-  if (origin !== 'https://jeffreyquan.github.io/') {
+  if (origin !== 'https://jeffreyquan.github.io') {
     return callback('origin not allowed', false);
-  } else if (origin !== 'http://localhost:3333/') {
+  } else if (origin !== 'http://localhost:3333') {
     return callback('origin not allowed', false);
   }
   callback(null, true);
