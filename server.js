@@ -64,9 +64,10 @@ const db = `mongodb+srv://jeffreyq:${ process.env.MONGOPW }@quizy-vsn1g.mongodb.
 
 mongoose.set('useFindAndModify', false);
 mongoose
-  .connect(db, { useNewUrlParser: true, useUnifiedTopology: true, useCreateIndex: true })
+  .connect(db, { useNewUrlParser: true, useCreateIndex: true })
   .then(() => console.log('DB connected'))
   .catch(err => console.error(err));
+  // , useUnifiedTopology: true
 
 const port = process.env.PORT || 3000;
 
