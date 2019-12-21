@@ -79,7 +79,7 @@ const io = socketIO(server, {
   pingTimeout: 60000
 });
 
-io.origins('*:*')
+io.origins('*:*');
 
 app.use(cors());
 app.use(bodyParser.urlencoded({ extended: true }));
