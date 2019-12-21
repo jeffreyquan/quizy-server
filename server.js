@@ -41,6 +41,7 @@ const FINAL_RANK = "FINAL_RANK";
 const HOST_DISCONNECTED = "HOST_DISCONNECTED"; // TODO: ADDRESS THIS ON CLIENT SIDE
 const SHOW_PIN = "SHOW_PIN";
 const UPDATE_PLAYERS_IN_LOBBY ="UPDATE_PLAYERS_IN_LOBBY";
+const NICKNAME_TAKEN = "NICKNAME_TAKEN";
 const PLAYER_JOINED = "PLAYER_JOINED";
 const PLAYER_JOINED_SUCCESSFULLY = "PLAYER_JOINED_SUCCESSFULLY";
 const WAITING_FOR_START = "WAITING_FOR_START";
@@ -157,6 +158,7 @@ io.on('connection', socket => {
     console.log('Player attempting to join a game', data);
 
     let gameFound = false;
+    let nicknameTaken = false;
 
     Game.find({}, (err, games) => {
       if (err) console.log(err);
@@ -165,46 +167,63 @@ io.on('connection', socket => {
 
         if (parseInt(data.pin) === games[i].pin) {
 
-          console.log('Player has successfully connected to the game', data);
+          console.log('Player has successfully located the game', data);
 
           const hostId = games[i].hostId;
 
-          newPlayer = new Player({
-            hostId: hostId,
-            pin: parseInt(data.pin),
-            playerId: socket.id,
-            nickname: data.nickname,
-            answer: null,
-            score: 0,
-            streak: 0,
-            rank: 0,
-            lastCorrect: false,
-            totalCorrect: 0
-          })
-
-          newPlayer.save((err, player) => {
+          Player.find({ hostId: hostId }, (err, players) => {
             if (err) console.log(err);
-            console.log('New player created', player);
-            if (player._id) {
-              socket.join(parseInt(data.pin));
 
-              console.log( hostId );
+            console.log('Checking players names:', players);
+            for (let i = 0; i < players.length; i++) {
+              console.log(players[i].nickname, data.nickname);
+              if (players[i].nickname === data.nickname) {
+                socket.emit(NICKNAME_TAKEN);
+                nicknameTaken = true;
+                return
+              }
+            }
 
-              socket.emit(PLAYER_JOINED_SUCCESSFULLY, { nickname: player.nickname, pin: data.pin });
+            if (!nicknameTaken) {
 
-              Player.find({ hostId: hostId }, (err, players) => {
+              newPlayer = new Player({
+                hostId: hostId,
+                pin: parseInt(data.pin),
+                playerId: socket.id,
+                nickname: data.nickname,
+                answer: null,
+                score: 0,
+                streak: 0,
+                rank: 0,
+                lastCorrect: false,
+                totalCorrect: 0
+              })
+
+              newPlayer.save((err, player) => {
                 if (err) console.log(err);
+                console.log('New player created', player);
+                if (player._id) {
+                  socket.join(parseInt(data.pin));
 
-                console.log('All players:', players);
-                const playersData = {
-                  players: players,
-                  playersCount: players.length
+                  console.log( hostId );
+
+                  socket.emit(PLAYER_JOINED_SUCCESSFULLY, { nickname: player.nickname, pin: data.pin });
+
+                  Player.find({ hostId: hostId }, (err, players) => {
+                    if (err) console.log(err);
+
+                    console.log('All players:', players);
+                    const playersData = {
+                      players: players,
+                      playersCount: players.length
+                    }
+
+                    io.to(parseInt(data.pin)).emit(UPDATE_PLAYERS_IN_LOBBY, playersData);
+                  });
                 }
-
-                io.to(parseInt(data.pin)).emit(UPDATE_PLAYERS_IN_LOBBY, playersData);
               });
             }
-          });
+          })
           gameFound = true;
         }
       }
