@@ -60,7 +60,7 @@ const playerRouter = require('./api/routes/playerRoutes');
 
 mongoose.Promise = global.Promise;
 
-const db = `mongodb+srv://jeffreyq:${ process.env.MONGOPW }@quizy-vsn1g.mongodb.net/main?retryWrites=true&w=majority`;
+const db = process.env.MONGODB_URI;
 
 mongoose.set('useFindAndModify', false);
 mongoose
