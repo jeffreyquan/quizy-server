@@ -5,49 +5,13 @@ const bodyParser = require('body-parser');
 const socketIO = require('socket.io');
 const http = require('http');
 
-const HOST_JOINED = "HOST_JOINED";
-const HOST_STARTED_GAME = "HOST_STARTED_GAME";
-const GAME_HAS_STARTED = "GAME_HAS_STARTED";
-const GAME_INTRO = "GAME_INTRO";
-const FETCH_NUMBER_OF_QUESTIONS = "FETCH_NUMBER_OF_QUESTIONS";
-const RECEIVE_NUMBER_OF_QUESTIONS = "RECEIVE_NUMBER_OF_QUESTIONS";
-const FETCH_INTRO = "FETCH_INTRO";
 // const FETCH_GAME = "FETCH_GAME";
 // const RECEIVE_GAME = "RECEIVE_GAME";
 // NO LONGER REQUIRED -- TO BE PROVIDED IN FETCH GAME AND RECEIVE GAME
-const FETCH_QUESTION = "FETCH_QUESTION";
-const RECEIVE_QUESTION = "RECEIVE_QUESTION";
-const ANSWER_SUBMITTED = "ANSWER_SUBMITTED";
-const UPDATE_PLAYERS_ANSWERED = "UPDATE_PLAYERS_ANSWERED";
-const FETCH_TIME = "FETCH_TIME";
-const TIME = "TIME";
-const ANSWER_RESULT = "ANSWER_RESULT";
-const QUESTION_END = "QUESTION_END";
-const QUESTION_RESULT ="QUESTION_RESULT";
-const FETCH_SCOREBOARD = "FETCH_SCOREBOARD";
-const RECEIVE_SCOREBOARD = "RECEIVE_SCOREBOARD";
-const FETCH_SCORE = "FETCH_SCORE";
-const PLAYER_RESULTS = "PLAYER_RESULTS";
-const FETCH_NEXT_QUESTION = "FETCH_NEXT_QUESTION";
-const NEXT_QUESTION = "NEXT_QUESTION";
-const NEXT = "NEXT";
-const GO_TO_NEXT = "GO_TO_NEXT";
-const RECEIVE_NEXT_ANSWER_OPTIONS = "RECEIVE_NEXT_ANSWER_OPTIONS";
-const GAME_OVER = "GAME_OVER";
-const FINISH_GAME = "FINISH_GAME";
-const FINAL = "FINAL";
-const PLAYER_RANK = "PLAYER_RANK";
-const FINAL_RANK = "FINAL_RANK";
+const ANSWER_RESULT = "ANSWER_RESULT"; // DO WE NEED THIS
+
 const HOST_DISCONNECTED = "HOST_DISCONNECTED"; // TODO: ADDRESS THIS ON CLIENT SIDE
-const SHOW_PIN = "SHOW_PIN";
-const UPDATE_PLAYERS_IN_LOBBY ="UPDATE_PLAYERS_IN_LOBBY";
-const NICKNAME_TAKEN = "NICKNAME_TAKEN";
-const PLAYER_JOINED = "PLAYER_JOINED";
-const PLAYER_JOINED_SUCCESSFULLY = "PLAYER_JOINED_SUCCESSFULLY";
-const WAITING_FOR_START = "WAITING_FOR_START";
-const READY = "READY";
-const RECEIVE_ANSWER_OPTIONS = "RECEIVE_ANSWER_OPTIONS";
-const GAME_NOT_FOUND = "GAME_NOT_FOUND";
+const WAITING_FOR_START = "WAITING_FOR_START"; // TODO: DO WE NEED THIS?
 const QUIZ_DOES_NOT_EXIST = "QUIZ_DOES_NOT_EXIST" // TODO: ADDRESS THIS ON CLIENT SIDE
 
 global.Quiz = require('./api/models/quizModel');
@@ -110,7 +74,7 @@ app.use((req, res) => {
 io.on('connection', socket => {
   console.log('User connected with socket id:', socket.id);
 
-  socket.on(HOST_JOINED, quizId => {
+  socket.on("HOST_JOINED", quizId => {
     console.log(`Host has joined the game: ${ quizId }`);
     Quiz.findById(quizId, (err, quiz) => {
       if (err) console.log(err);
@@ -139,13 +103,13 @@ io.on('connection', socket => {
 
         console.log('Showing pin for the game:', newGame.pin );
 
-        socket.emit(SHOW_PIN, {
+        socket.emit("SHOW_PIN", {
           pin: newGame.pin
         })
 
       } else {
 
-        socket.emit(QUIZ_DOES_NOT_EXIST); // TODO: add code on client side to deal with this
+        socket.emit("QUIZ_DOES_NOT_EXIST"); // TODO: add code on client side to deal with this
 
       }
 
@@ -153,7 +117,7 @@ io.on('connection', socket => {
 
   });
 
-  socket.on(PLAYER_JOINED, data => {
+  socket.on("PLAYER_JOINED", data => {
 
     console.log('Player attempting to join a game', data);
 
@@ -178,7 +142,7 @@ io.on('connection', socket => {
             for (let i = 0; i < players.length; i++) {
               console.log(players[i].nickname, data.nickname);
               if (players[i].nickname === data.nickname) {
-                socket.emit(NICKNAME_TAKEN);
+                socket.emit("NICKNAME_TAKEN");
                 nicknameTaken = true;
                 return
               }
@@ -207,7 +171,7 @@ io.on('connection', socket => {
 
                   console.log( hostId );
 
-                  socket.emit(PLAYER_JOINED_SUCCESSFULLY, { nickname: player.nickname, pin: data.pin });
+                  socket.emit("PLAYER_JOINED_SUCCESSFULLY", { nickname: player.nickname, pin: data.pin });
 
                   Player.find({ hostId: hostId }, (err, players) => {
                     if (err) console.log(err);
@@ -218,7 +182,7 @@ io.on('connection', socket => {
                       playersCount: players.length
                     }
 
-                    io.to(parseInt(data.pin)).emit(UPDATE_PLAYERS_IN_LOBBY, playersData);
+                    io.to(parseInt(data.pin)).emit("UPDATE_PLAYERS_IN_LOBBY", playersData);
                   });
                 }
               });
@@ -229,7 +193,7 @@ io.on('connection', socket => {
       }
       console.log(gameFound);
       if (!gameFound) {
-        socket.emit(GAME_NOT_FOUND);
+        socket.emit("GAME_NOT_FOUND");
       }
 
     })
@@ -239,7 +203,7 @@ io.on('connection', socket => {
   //   Player
   // })
 
-  socket.on(HOST_STARTED_GAME, data => {
+  socket.on("HOST_STARTED_GAME", data => {
 
     console.log('Host started game with pin:', data);
     const pin = parseInt(data);
@@ -250,11 +214,11 @@ io.on('connection', socket => {
       if (err) console.log(err);
 
       console.log('Host has started game');
-      io.to(pin).emit(GAME_HAS_STARTED);
+      io.to(pin).emit("GAME_HAS_STARTED");
     })
   });
 
-  socket.on(FETCH_INTRO, pin => {
+  socket.on("FETCH_INTRO", pin => {
 
     console.log('Fetching info for room with pin:', pin);
     Game.findOne({ hostId: socket.id, pin: pin }).populate('quiz').exec((err, game) => {
@@ -263,16 +227,16 @@ io.on('connection', socket => {
       console.log('Fetching info for this game');
       const quizId = game.quiz._id;
       const quizName = game.quiz.name;
-      const numberOfQuestions = game.quiz.questions.length;
+      const totalNumberOfQuestions = game.quiz.questions.length;
 
-      socket.emit(GAME_INTRO, { quizName: quizName, numberOfQuestions: numberOfQuestions });
+      socket.emit("GAME_INTRO", { quizName: quizName, totalNumberOfQuestions: totalNumberOfQuestions });
 
-      io.to(game.pin).emit(READY);
+      io.to(game.pin).emit("READY");
       console.log('Ready message has been emitted -- game is about to start');
     })
   });
 
-  socket.on(FETCH_NUMBER_OF_QUESTIONS, pin => {
+  socket.on("FETCH_NUMBER_OF_QUESTIONS", pin => {
 
     Player.findOne({ playerId: socket.id, pin: parseInt(pin) }, (err, player) => {
       if (err) console.log(err);
@@ -285,12 +249,12 @@ io.on('connection', socket => {
 
         const numberOfQuestions = game.quiz.questions.length;
 
-        socket.emit(RECEIVE_NUMBER_OF_QUESTIONS, numberOfQuestions);
+        socket.emit("RECEIVE_NUMBER_OF_QUESTIONS", numberOfQuestions);
       })
     })
   })
 
-  socket.on(FETCH_QUESTION, pin => {
+  socket.on("FETCH_QUESTION", pin => {
 
     Game.findOne({ hostId: socket.id, pin: parseInt(pin) }).populate('quiz').exec((err, game) => {
       if (err) console.log(err);
@@ -319,15 +283,15 @@ io.on('connection', socket => {
         answers: game.quiz.questions[game.questionNumber - 1].answers
       }
 
-      socket.emit(RECEIVE_QUESTION, data);
+      socket.emit("RECEIVE_QUESTION", data);
       console.log('Fetching game data:', data);
 
-      io.to(game.pin).emit(RECEIVE_ANSWER_OPTIONS, playData);
+      io.to(game.pin).emit("RECEIVE_ANSWER_OPTIONS", playData);
       console.log('Sending answer options to players: ', playData);
     })
   });
 
-  socket.on(ANSWER_SUBMITTED, data => {
+  socket.on("ANSWER_SUBMITTED", data => {
 
     const { answer, pin } = data;
 
@@ -361,7 +325,7 @@ io.on('connection', socket => {
 
             if (data.answer === correctAnswer) {
               score = player.score + 200;
-              io.to(game.pin).emit(FETCH_TIME, socket.id);
+              io.to(game.pin).emit("FETCH_TIME", socket.id);
               // socket.emit(ANSWER_RESULT, true); // MAYBE NEED TO MOVE THIS TO INCLUDE STREAK, ETC.
               lastCorrect = true;
               streak = player.streak + 1;
@@ -390,7 +354,7 @@ io.on('connection', socket => {
 
                 console.log('Updated game:', g);
                 console.log('Updated number of players who answered.');
-                io.to(g.pin).emit(UPDATE_PLAYERS_ANSWERED, playersAnswered);
+                io.to(g.pin).emit("UPDATE_PLAYERS_ANSWERED", playersAnswered);
 
                 console.log('Game is showing players answered: ', g.playersAnswered, 'Total number of players count:', numberOfPlayers);
 
@@ -431,7 +395,7 @@ io.on('connection', socket => {
                         correctAnswer: correctAnswer
                       }
 
-                      io.to(game.pin).emit(QUESTION_RESULT, data);
+                      io.to(game.pin).emit("QUESTION_RESULT", data);
                     })
                   });
                 }
@@ -444,7 +408,7 @@ io.on('connection', socket => {
 
   });
 
-  socket.on(TIME, data => {
+  socket.on("TIME", data => {
     const { pin, playerId, time } = data;
     const filter = { playerId: playerId, pin: parseInt(pin) };
 
@@ -466,7 +430,7 @@ io.on('connection', socket => {
     })
   });
 
-  socket.on(QUESTION_END, data => {
+  socket.on("QUESTION_END", data => {
 
     const pin = parseInt(data);
 
@@ -518,13 +482,13 @@ io.on('connection', socket => {
 
         console.log('Time is up, here are the results: ', info);
 
-        io.to(game.pin).emit(QUESTION_RESULT, info);
+        io.to(game.pin).emit("QUESTION_RESULT", info);
       })
     })
 
   });
 
-  socket.on(FETCH_SCORE, info => {
+  socket.on("FETCH_SCORE", info => {
     const { nickname, pin } = info;
     console.log(`Player ${ nickname } fetching score for game with pin ${ pin }`);
     const filter = { playerId: socket.id, pin: parseInt(pin) };
@@ -558,7 +522,7 @@ io.on('connection', socket => {
             lastCorrect: p.lastCorrect
           }
 
-          socket.emit(PLAYER_RESULTS, data);
+          socket.emit("PLAYER_RESULTS", data);
 
           console.log('Sending results to player:', data);
         })
@@ -566,7 +530,7 @@ io.on('connection', socket => {
     });
   });
 
-  socket.on(FETCH_SCOREBOARD, data => {
+  socket.on("FETCH_SCOREBOARD", data => {
 
     const { pin } = data;
     const hostId = socket.id;
@@ -594,12 +558,12 @@ io.on('connection', socket => {
         rankedPlayers = sortedPlayerScores.slice(0, 5);
       }
 
-      socket.emit(RECEIVE_SCOREBOARD, rankedPlayers);
+      socket.emit("RECEIVE_SCOREBOARD", rankedPlayers);
       console.log('Sending scoreboard: ', rankedPlayers);
     });
   });
 
-  socket.on(FETCH_NEXT_QUESTION, data => {
+  socket.on("FETCH_NEXT_QUESTION", data => {
 
     console.log('Fetching next question for game: ', data);
     const { pin, questionNumber } = data;
@@ -645,10 +609,10 @@ io.on('connection', socket => {
             answers: game.quiz.questions[game.questionNumber - 1].answers
           }
 
-          socket.emit(NEXT_QUESTION, nextQuestionHost);
+          socket.emit("NEXT_QUESTION", nextQuestionHost);
           console.log('Sending next question to host:', nextQuestionHost);
 
-          io.to(game.pin).emit(RECEIVE_NEXT_ANSWER_OPTIONS, nextQuestionPlayer);
+          io.to(game.pin).emit("RECEIVE_NEXT_ANSWER_OPTIONS", nextQuestionPlayer);
           console.log('Sending next answer options to players: ', nextQuestionPlayer);
 
         } else {
@@ -680,7 +644,7 @@ io.on('connection', socket => {
                 finalRankings = sortedPlayerScores.slice(0, 3);
               }
 
-              io.to(game.pin).emit(GAME_OVER, finalRankings);
+              io.to(game.pin).emit("GAME_OVER", finalRankings);
             })
           })
         }
@@ -688,11 +652,11 @@ io.on('connection', socket => {
     })
   });
 
-  socket.on(NEXT, pin => {
-    io.to(pin).emit(GO_TO_NEXT);
+  socket.on("NEXT", pin => {
+    io.to(pin).emit("GO_TO_NEXT");
   })
 
-  socket.on(PLAYER_RANK, pin => {
+  socket.on("PLAYER_RANK", pin => {
 
     Player.findOne({ playerId: socket.id, pin: parseInt(pin) }, (err, player) => {
       if (err) console.log(err);
@@ -704,12 +668,12 @@ io.on('connection', socket => {
       }
       console.log('Displaying the final score of player:', data);
 
-      socket.emit(FINAL_RANK, data);
+      socket.emit("FINAL_RANK", data);
     })
   })
 
-  socket.on(FINISH_GAME, pin => {
-    io.to(pin).emit(FINAL);
+  socket.on("FINISH_GAME", pin => {
+    io.to(pin).emit("FINAL");
   })
 
   socket.on('disconnect', () => {
@@ -728,7 +692,7 @@ io.on('connection', socket => {
           Player.deleteMany({ hostId: game.hostId}, err => {
             if (err) console.log(err);
 
-            io.to(game.pin).emit(HOST_DISCONNECTED);
+            io.to(game.pin).emit("HOST_DISCONNECTED");
           })
         })
 
@@ -771,7 +735,7 @@ io.on('connection', socket => {
 
                     console.log('Updated players in lobby', playersData);
 
-                    io.to(pin).emit(UPDATE_PLAYERS_IN_LOBBY, playersData);
+                    io.to(pin).emit("UPDATE_PLAYERS_IN_LOBBY", playersData);
 
                     socket.leave(pin);
                   })
