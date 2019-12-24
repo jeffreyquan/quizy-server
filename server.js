@@ -281,117 +281,107 @@ io.on('connection', socket => {
 
     const { answer, pin } = data;
 
-    const filter = { playerId: socket.id, pin: parseInt(pin) };
+    const filter = { playerId: socket.id, pin: pin };
 
     console.log(`Player ${ socket.id } has submitted answer ${ answer } to game ${ pin }.`);
 
-    Player.findOne(filter, (err, player) => {
-      if (err) console.log(err);
+    Promise.all([
+      Player.findOne(filter).exec(),
+      Player.countDocuments({ pin: pin }).exec(),
+      Game.findOne({ pin: pin }).populate('quiz').exec()
+    ]).then(([player, count, game]) => {
 
-      console.log('Dislaying player who answered', player);
-      const hostId = player.hostId;
+      let numberOfPlayers = count;
+      console.log('Displaying game', game);
+      const correctAnswer = game.quiz.questions[game.questionNumber - 1].correct;
 
-      Player.countDocuments({ hostId: hostId, pin: parseInt(pin) }, (err, count) => {
-        if (err) console.log(err);
+      if (game.questionStatus) {
 
-        let numberOfPlayers = count;
+        let score;
+        let lastCorrect;
+        let streak;
+        let totalCorrect;
 
-        Game.findOne({ hostId: hostId, pin: parseInt(pin) }).populate('quiz').exec((err, game) => {
-          if (err) console.log(err);
+        if (data.answer === correctAnswer) {
+          score = player.score + 200;
+          io.to(game.pin).emit("FETCH_TIME", socket.id);
+          // socket.emit(ANSWER_RESULT, true); // MAYBE NEED TO MOVE THIS TO INCLUDE STREAK, ETC.
+          lastCorrect = true;
+          streak = player.streak + 1;
+          totalCorrect = player.totalCorrect + 1;
+        } else {
+          score = player.score;
+          lastCorrect = false;
+          streak = 0;
+          totalCorrect = player.totalCorrect;
+          // socket.emit(ANSWER_RESULT, false); // PROBABLY DON'T NEED THIS
+        }
 
-          console.log('Displaying game', game);
-          const correctAnswer = game.quiz.questions[game.questionNumber - 1].correct;
+        const update = { answer: answer, score: score, lastCorrect: lastCorrect, streak: streak, totalCorrect: totalCorrect };
+        console.log('Update to player', update);
 
-          if (game.questionStatus) {
+        const playersAnswered = game.playersAnswered + 1;
 
-            let score;
-            let lastCorrect;
-            let streak;
-            let totalCorrect;
+        Promise.all([
+          Player.findOneAndUpdate(filter, update, { new: true }).exec(),
+          Game.findOneAndUpdate({ _id: game._id }, { playersAnswered: playersAnswered }, { new: true }).exec()
+        ]).then(([p, g]) => {
 
-            if (data.answer === correctAnswer) {
-              score = player.score + 200;
-              io.to(game.pin).emit("FETCH_TIME", socket.id);
-              // socket.emit(ANSWER_RESULT, true); // MAYBE NEED TO MOVE THIS TO INCLUDE STREAK, ETC.
-              lastCorrect = true;
-              streak = player.streak + 1;
-              totalCorrect = player.totalCorrect + 1;
-            } else {
-              score = player.score;
-              lastCorrect = false;
-              streak = 0;
-              totalCorrect = player.totalCorrect;
-              // socket.emit(ANSWER_RESULT, false); // PROBABLY DON'T NEED THIS
-            }
+          console.log('Player answer successfully submitted.');
+          console.log('Updated player: ', p);
 
-            const update = { answer: answer, score: score, lastCorrect: lastCorrect, streak: streak, totalCorrect: totalCorrect };
-            console.log('Update to player', update);
-            Player.findOneAndUpdate(filter, update, { new: true }, (err, p) => {
-              if (err) console.log(err);
+          console.log('Updating players answered to:', playersAnswered);
 
-              console.log('Player answer successfully submitted.');
-              console.log('Updated player: ', p);
+          console.log('Updated game:', g);
+          console.log('Updated number of players who answered.');
+          io.to(g.pin).emit("UPDATE_PLAYERS_ANSWERED", playersAnswered);
 
-              const playersAnswered = game.playersAnswered + 1;
-              console.log('Updating players answered to:', playersAnswered);
 
-              Game.findOneAndUpdate({ _id: game._id }, { playersAnswered: playersAnswered }, { new: true }, (err, g) => {
-                if (err) console.log(err);
+          console.log('Game is showing players answered: ', g.playersAnswered, 'Total number of players count:', numberOfPlayers);
 
-                console.log('Updated game:', g);
-                console.log('Updated number of players who answered.');
-                io.to(g.pin).emit("UPDATE_PLAYERS_ANSWERED", playersAnswered);
+          if (g.playersAnswered === numberOfPlayers) {
 
-                console.log('Game is showing players answered: ', g.playersAnswered, 'Total number of players count:', numberOfPlayers);
+            Promise.all([
+              Game.findOneAndUpdate({ _id: game._id }, { questionStatus: false }, { new: true }).exec(),
+              Player.find({ pin: pin })
+            ]).then(([game, players]) => {
+              console.log('All players have answered.');
 
-                if (g.playersAnswered === numberOfPlayers) {
 
-                  Game.findOneAndUpdate({ _id: game._id }, { questionStatus: false }, { new: true }, (err, res) => {
-                    if (err) console.log(err);
+              let answeredA = 0;
+              let answeredB = 0;
+              let answeredC = 0;
+              let answeredD = 0;
 
-                    console.log('All players have answered.');
+              console.log('Fetching all players who have answered: ', players);
 
-                    Player.find({ hostId: hostId, pin: parseInt(pin) }, (err, players) => {
-                      if (err) console.log(err);
-
-                      let answeredA = 0;
-                      let answeredB = 0;
-                      let answeredC = 0;
-                      let answeredD = 0;
-
-                      console.log('Fetching all players who have answered: ', players);
-
-                      for (let i = 0; i < players.length; i++) {
-                        if (players[i].answer === 'a') {
-                          answeredA += 1;
-                        } else if (players[i].answer === 'b') {
-                          answeredB += 1;
-                        } else if (players[i].answer === 'c') {
-                          answeredC += 1;
-                        } else if (players[i].answer === 'd') {
-                          answeredD += 1;
-                        }
-                      }
-
-                      const data = {
-                        answeredA: answeredA,
-                        answeredB: answeredB,
-                        answeredC: answeredC,
-                        answeredD: answeredD,
-                        correctAnswer: correctAnswer
-                      }
-
-                      io.to(game.pin).emit("QUESTION_RESULT", data);
-                    })
-                  });
+              for (let i = 0; i < players.length; i++) {
+                if (players[i].answer === 'a') {
+                  answeredA += 1;
+                } else if (players[i].answer === 'b') {
+                  answeredB += 1;
+                } else if (players[i].answer === 'c') {
+                  answeredC += 1;
+                } else if (players[i].answer === 'd') {
+                  answeredD += 1;
                 }
-              })
+              }
+
+              const data = {
+                answeredA: answeredA,
+                answeredB: answeredB,
+                answeredC: answeredC,
+                answeredD: answeredD,
+                correctAnswer: correctAnswer
+              }
+
+              io.to(game.pin).emit("QUESTION_RESULT", data);
+
             })
           }
         })
-      })
-    })
-
+      }
+    });
   });
 
   socket.on("TIME", data => {
