@@ -235,20 +235,14 @@ io.on('connection', socket => {
 
   socket.on("FETCH_NUMBER_OF_QUESTIONS", pin => {
 
-    Player.findOne({ playerId: socket.id, pin: parseInt(pin) }, (err, player) => {
+    Game.findOne({ pin: parseInt(pin) }).populate('quiz').exec((err, game) => {
       if (err) console.log(err);
 
-      console.log('Player fetching no of questions', player);
-      const hostId = player.hostId;
+      const numberOfQuestions = game.quiz.questions.length;
 
-      Game.findOne({ hostId: hostId, pin: parseInt(pin) }).populate('quiz').exec((err, game) => {
-        if (err) console.log(err);
-
-        const numberOfQuestions = game.quiz.questions.length;
-
-        socket.emit("RECEIVE_NUMBER_OF_QUESTIONS", numberOfQuestions);
-      })
+      socket.emit("RECEIVE_NUMBER_OF_QUESTIONS", numberOfQuestions);
     })
+
   })
 
   socket.on("FETCH_QUESTION", pin => {
