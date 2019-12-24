@@ -245,21 +245,16 @@ io.on('connection', socket => {
 
   })
 
-  socket.on("FETCH_QUESTION", pin => {
+  socket.on("FETCH_QUESTION", data => {
 
-    Game.findOne({ hostId: socket.id, pin: parseInt(pin) }).populate('quiz').exec((err, game) => {
-      if (err) console.log(err);
+    const pin = parseInt(data);
 
-      console.log('Fetching info on this game:', game);
+    Promise.all([
+      Game.findOne({ hostId: socket.id, pin: pin }).populate('quiz').exec(),
+      Player.countDocuments({ hostId: socket.id, pin: pin }).exec()
+    ]).then(([game, count]) => {
 
-      let numberOfPlayers;
-
-      Player.countDocuments({ hostId: socket.id, pin: parseInt(pin) }, (err, count) => {
-        if (err) console.log(err);
-
-        console.log(count);
-        numberOfPlayers = count;
-      })
+      const numberOfPlayers = count;
 
       const data = {
         questionNumber: game.questionNumber,
