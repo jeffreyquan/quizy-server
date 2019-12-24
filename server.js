@@ -32,7 +32,6 @@ mongoose
   .connect(db, { useNewUrlParser: true, useUnifiedTopology: true, useCreateIndex: true })
   .then(() => console.log('DB connected'))
   .catch(err => console.error(err));
-  // , useUnifiedTopology: true
 
 const port = process.env.PORT || 3000;
 
@@ -53,7 +52,7 @@ var corsOptions = {
       callback(new Error('Not allowed by CORS'))
     }
   }
-}
+};
 
 app.use(cors(corsOptions));
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -83,7 +82,7 @@ io.on('connection', socket => {
 
       if (quiz) {
         let pin = Math.floor(Math.random()*9000000) + 1000000;
-        // console.log( quiz._id );
+
         newGame = new Game({
           hostId: socket.id,
           pin: pin,
@@ -99,9 +98,9 @@ io.on('connection', socket => {
           console.log('Game created', game );
         })
 
-        socket.join(newGame.pin);
+        socket.join(pin);
 
-        console.log('Showing pin for the game:', newGame.pin );
+        console.log('Showing pin for the game:', pin );
 
         socket.emit("SHOW_PIN", {
           pin: newGame.pin
@@ -121,76 +120,74 @@ io.on('connection', socket => {
 
     console.log('Player attempting to join a game', data);
 
+    let pin = parseInt(data.pin);
+    let nickname = data.nickname;
+
     let gameFound = false;
     let nicknameTaken = false;
 
-    Game.find({}, (err, games) => {
+    Game.findOne({ pin: pin }, (err, game) => {
       if (err) console.log(err);
 
-      for (let i = 0; i < games.length; i++) {
+      if (game) {
 
-        if (parseInt(data.pin) === games[i].pin) {
+        console.log('Player has successfully located the game', data);
 
-          console.log('Player has successfully located the game', data);
+        const hostId = game.hostId;
 
-          const hostId = games[i].hostId;
+        Player.findOne({ nickname: nickname }, (err, player) => {
+          if (err) console.log(err);
 
-          Player.find({ hostId: hostId }, (err, players) => {
-            if (err) console.log(err);
+          if (player.length === 1) {
+            socket.emit("NICKNAME_TAKEN");
+            nicknameTaken = true;
+            return
+          }
 
-            console.log('Checking players names:', players);
-            for (let i = 0; i < players.length; i++) {
-              console.log(players[i].nickname, data.nickname);
-              if (players[i].nickname === data.nickname) {
-                socket.emit("NICKNAME_TAKEN");
-                nicknameTaken = true;
-                return
+          if (!nicknameTaken) {
+
+            newPlayer = new Player({
+              hostId: hostId,
+              pin: pin,
+              playerId: socket.id,
+              nickname: nickname,
+              answer: null,
+              score: 0,
+              streak: 0,
+              rank: 0,
+              lastCorrect: false,
+              totalCorrect: 0
+            })
+
+            newPlayer.save((err, player) => {
+              if (err) console.log(err);
+
+              console.log('New player created', player);
+              if (player._id) {
+                socket.join(pin);
+
+                console.log( hostId );
+
+                socket.emit("PLAYER_JOINED_SUCCESSFULLY", { nickname: player.nickname, pin: data.pin });
+
+                Player.find({ hostId: hostId }, (err, players) => {
+                  if (err) console.log(err);
+
+                  console.log('All players:', players);
+                  const playersData = {
+                    players: players,
+                    playersCount: players.length
+                  }
+
+                  io.to(pin).emit("UPDATE_PLAYERS_IN_LOBBY", playersData);
+                });
               }
-            }
-
-            if (!nicknameTaken) {
-
-              newPlayer = new Player({
-                hostId: hostId,
-                pin: parseInt(data.pin),
-                playerId: socket.id,
-                nickname: data.nickname,
-                answer: null,
-                score: 0,
-                streak: 0,
-                rank: 0,
-                lastCorrect: false,
-                totalCorrect: 0
-              })
-
-              newPlayer.save((err, player) => {
-                if (err) console.log(err);
-                console.log('New player created', player);
-                if (player._id) {
-                  socket.join(parseInt(data.pin));
-
-                  console.log( hostId );
-
-                  socket.emit("PLAYER_JOINED_SUCCESSFULLY", { nickname: player.nickname, pin: data.pin });
-
-                  Player.find({ hostId: hostId }, (err, players) => {
-                    if (err) console.log(err);
-
-                    console.log('All players:', players);
-                    const playersData = {
-                      players: players,
-                      playersCount: players.length
-                    }
-
-                    io.to(parseInt(data.pin)).emit("UPDATE_PLAYERS_IN_LOBBY", playersData);
-                  });
-                }
-              });
-            }
-          })
-          gameFound = true;
-        }
+            });
+          }
+        })
+        gameFound = true;
       }
+
       console.log(gameFound);
       if (!gameFound) {
         socket.emit("GAME_NOT_FOUND");
