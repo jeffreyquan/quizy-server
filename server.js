@@ -207,7 +207,7 @@ io.on('connection', socket => {
     const filter = { hostId: socket.id, pin: pin };
     const update = { gameStatus: true, questionStatus: true };
 
-    Game.findOneAndUpdate(filter, update, { new: true }).populate('quiz').exec((err, game) => {
+    Game.findOneAndUpdate(filter, update, { new: true }).exec((err, game) => {
       if (err) console.log(err);
 
       console.log('Host has started game');
