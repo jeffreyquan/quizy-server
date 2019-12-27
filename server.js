@@ -257,6 +257,7 @@ io.on('connection', socket => {
       const numberOfPlayers = count;
 
       const data = {
+        quizName: game.quiz.name,
         questionNumber: game.questionNumber,
         totalNumberOfQuestions: game.quiz.questions.length,
         question: game.quiz.questions[game.questionNumber - 1],
@@ -605,7 +606,8 @@ io.on('connection', socket => {
               for (let i = 0; i < players.length; i++) {
                 const temp = {
                   nickname: players[i].nickname,
-                  score: players[i].score
+                  score: players[i].score,
+                  totalCorrect: players[i].totalCorrect
                 }
                 playerScores.push(temp);
               }
@@ -665,7 +667,7 @@ io.on('connection', socket => {
 
           console.log('Host has been disconnected. Game has been disconnected. Pin:', game[0].pin);
 
-          Player.deleteMany({ hostId: game.hostId}, err => {
+          Player.deleteMany({ hostId: game.hostId }, err => {
             if (err) console.log(err);
 
             io.to(game.pin).emit("HOST_DISCONNECTED");
