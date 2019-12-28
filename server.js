@@ -681,18 +681,18 @@ io.on('connection', socket => {
           if (player) {
 
             console.log('Player', player);
-            const hostId = player.hostId;
             const pin = player.pin;
+            const gameId = player.game;
 
             Promise.all([
               Player.deleteOne({ playerId: socket.id }).exec(),
-              Game.findOne({ hostId: hostId, pin: pin }).exec()
+              Game.findOne({ _id: gameId }).exec()
             ]).then(([p, gameA]) => {
 
               console.log('Player has disconnected.');
               if (!gameA.gameStatus) {
 
-                Player.find({ hostId: hostId, pin: pin }, (err, players) => {
+                Player.find({ game: gameId }, (err, players) => {
                   if (err) console.log(err);
 
                   const playersData = {
