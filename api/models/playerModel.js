@@ -2,6 +2,9 @@ const mongoose = require('mongoose');
 const { Schema } = mongoose;
 
 const PlayerSchema = new Schema({
+  game: {
+    type: Schema.Types.ObjectId, ref: 'Game'
+  },
   hostId: {
     type: String,
   },
