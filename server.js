@@ -192,7 +192,7 @@ io.on('connection', socket => {
 
   socket.on("FETCH_NUMBER_OF_QUESTIONS", pin => {
 
-    Game.findOne({ pin: parseInt(pin) }).populate('quiz').exec((err, game) => {
+    Game.findOne({ pin: pin }).populate('quiz').exec((err, game) => {
       if (err) console.log(err);
 
       const gameId = game._id;
@@ -239,7 +239,7 @@ io.on('connection', socket => {
     Promise.all([
       Player.findOne(filter).exec(),
       Player.countDocuments({ game: gameId }).exec(),
-      Game.findOne({ _id: gameId }).populate('quiz').exec()
+      Game.findById({ _id: gameId }).populate('quiz').exec()
     ]).then(([player, count, game]) => {
 
       let numberOfPlayers = count;
@@ -278,7 +278,7 @@ io.on('connection', socket => {
 
         Promise.all([
           Player.findOneAndUpdate(filter, update, { new: true }).exec(),
-          Game.findOneAndUpdate({ _id: game._id }, { playersAnswered: playersAnswered }, { new: true }).exec()
+          Game.findByIdAndUpdate({ _id: game._id }, { playersAnswered: playersAnswered }, { new: true }).exec()
         ]).then(([p, g]) => {
 
           io.to(g.pin).emit("UPDATE_PLAYERS_ANSWERED", playersAnswered);
@@ -286,7 +286,7 @@ io.on('connection', socket => {
           if (g.playersAnswered === numberOfPlayers) {
 
             Promise.all([
-              Game.findOneAndUpdate({ _id: game._id }, { questionStatus: false }, { new: true }).exec(),
+              Game.findByIdAndUpdate({ _id: game._id }, { questionStatus: false }, { new: true }).exec(),
               Player.find({ game: gameId })
             ]).then(([game, players]) => {
 
@@ -561,7 +561,7 @@ io.on('connection', socket => {
       if (game) {
 
         Promise.all([
-          Game.deleteOne({ _id: game._id }).exec(),
+          Game.findByIdAndDelete({ _id: game._id }).exec(),
           Player.deleteMany({ hostId: game.hostId }).exec()
         ]).then(([g, players]) => {
 
@@ -582,7 +582,7 @@ io.on('connection', socket => {
 
             Promise.all([
               Player.deleteOne({ playerId: socket.id }).exec(),
-              Game.findOne({ _id: gameId }).exec()
+              Game.findById({ _id: gameId }).exec()
             ]).then(([p, gameA]) => {
 
               if (!gameA.gameStatus) {
