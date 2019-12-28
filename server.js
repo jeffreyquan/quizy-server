@@ -5,13 +5,6 @@ const bodyParser = require('body-parser');
 const socketIO = require('socket.io');
 const http = require('http');
 
-// const FETCH_GAME = "FETCH_GAME";
-// const RECEIVE_GAME = "RECEIVE_GAME";
-// NO LONGER REQUIRED -- TO BE PROVIDED IN FETCH GAME AND RECEIVE GAME
-
-const HOST_DISCONNECTED = "HOST_DISCONNECTED"; // TODO: ADDRESS THIS ON CLIENT SIDE
-const WAITING_FOR_START = "WAITING_FOR_START"; // TODO: DO WE NEED THIS?
-
 global.Quiz = require('./api/models/quizModel');
 global.User = require('./api/models/userModel');
 global.Game = require('./api/models/gameModel');
@@ -124,9 +117,10 @@ io.on('connection', socket => {
 
         console.log('Player has successfully located the game', data);
 
+        const gameId = game._id;
         const hostId = game.hostId;
 
-        Player.findOne({ nickname: nickname }, (err, player) => {
+        Player.findOne({ game: game._id, nickname: nickname }, (err, player) => {
           if (err) console.log(err);
 
           if (player) {
@@ -136,6 +130,7 @@ io.on('connection', socket => {
           } else  {
 
             newPlayer = new Player({
+              game: game,
               hostId: hostId,
               pin: pin,
               playerId: socket.id,
@@ -217,9 +212,10 @@ io.on('connection', socket => {
     Game.findOne({ pin: parseInt(pin) }).populate('quiz').exec((err, game) => {
       if (err) console.log(err);
 
-      const numberOfQuestions = game.quiz.questions.length;
+      const gameId = game._id;
+      const totalNumberOfQuestions = game.quiz.questions.length;
 
-      socket.emit("RECEIVE_NUMBER_OF_QUESTIONS", numberOfQuestions);
+      socket.emit("RECEIVE_NUMBER_OF_QUESTIONS", { gameId: gameId, totalNumberOfQuestions: totalNumberOfQuestions });
     })
 
   })
@@ -234,6 +230,7 @@ io.on('connection', socket => {
       const numberOfPlayers = count;
 
       const hostData = {
+        gameId: game._id,
         quizName: game.quiz.name,
         totalNumberOfQuestions: game.quiz.questions.length,
         question: game.quiz.questions[game.questionNumber - 1],
@@ -244,26 +241,26 @@ io.on('connection', socket => {
         answers: game.quiz.questions[game.questionNumber - 1].answers
       }
 
-      socket.emit("RECEIVE_QUESTION", hostData);
+      socket.emit("RECEIVE_FIRST_QUESTION", hostData);
       console.log('Fetching game data:', hostData);
 
       io.to(game.pin).emit("RECEIVE_ANSWER_OPTIONS", playerData);
-      console.log('Sending answer options to players: ', playData);
+      console.log('Sending answer options to players: ', playerData);
     })
   });
 
   socket.on("ANSWER_SUBMITTED", data => {
 
-    const { answer, pin } = data;
+    const { answer, gameId } = data;
 
-    const filter = { playerId: socket.id, pin: pin };
+    const filter = { playerId: socket.id, game: gameId };
 
-    console.log(`Player ${ socket.id } has submitted answer ${ answer } to game ${ pin }.`);
+    console.log(`Player ${ socket.id } has submitted answer ${ answer } to game ${ gameId }.`);
 
     Promise.all([
       Player.findOne(filter).exec(),
-      Player.countDocuments({ pin: pin }).exec(),
-      Game.findOne({ pin: pin }).populate('quiz').exec()
+      Player.countDocuments({ game: gameId }).exec(),
+      Game.findOne({ _id: gameId }).populate('quiz').exec()
     ]).then(([player, count, game]) => {
 
       let numberOfPlayers = count;
@@ -322,7 +319,7 @@ io.on('connection', socket => {
 
             Promise.all([
               Game.findOneAndUpdate({ _id: game._id }, { questionStatus: false }, { new: true }).exec(),
-              Player.find({ pin: pin })
+              Player.find({ game: gameId })
             ]).then(([game, players]) => {
               console.log('All players have answered.');
 
@@ -398,7 +395,7 @@ io.on('connection', socket => {
       Game.findOneAndUpdate(filter, update, { new: true }).populate('quiz').exec()
     ]).then(([count, game]) => {
 
-      console.log(`'Question has ended. Update to those who haven't answered. Matches ${ players.n }, updated ${ players.nModified }`);
+      console.log(`'Question has ended. Update to those who haven't answered. Matches ${ count.n }, updated ${ count.nModified }`);
 
       console.log('Question has ended.');
 
@@ -440,13 +437,13 @@ io.on('connection', socket => {
   });
 
   socket.on("FETCH_SCORE", info => {
-    const { nickname, pin } = info;
-    console.log(`Player ${ nickname } fetching score for game with pin ${ pin }`);
-    const filter = { playerId: socket.id, pin: pin };
+    const { nickname, gameId } = info;
+    console.log(`Player ${ nickname } fetching score for game with game id ${ gameId }`);
+    const filter = { playerId: socket.id, game: gameId };
 
     Promise.all([
       Player.findOne(filter).exec(),
-      Player.find({ pin: pin }).exec()
+      Player.find({ game: gameId }).exec()
     ]).then(([player, players]) => {
 
       const playerScore = player.score;
@@ -479,13 +476,11 @@ io.on('connection', socket => {
     })
   });
 
-  socket.on("FETCH_SCOREBOARD", data => {
+  socket.on("FETCH_SCOREBOARD", gameId => {
 
-    const { pin } = data;
-    const hostId = socket.id;
-    console.log('Attemping to fetch scoreboard: ', data);
+    console.log('Attemping to fetch scoreboard: ', gameId);
 
-    Player.find({ hostId: hostId, pin: pin }, (err, players) => {
+    Player.find({ game: gameId }, (err, players) => {
       if (err) console.log(err);
 
       let playerScores = [];
@@ -603,9 +598,9 @@ io.on('connection', socket => {
     io.to(pin).emit("GO_TO_NEXT_QUESTION");
   })
 
-  socket.on("PLAYER_RANK", pin => {
+  socket.on("PLAYER_RANK", gameId => {
 
-    Player.findOne({ playerId: socket.id, pin: pin }, (err, player) => {
+    Player.findOne({ playerId: socket.id, game: gameId }, (err, player) => {
       if (err) console.log(err);
 
       const data = {
@@ -667,7 +662,7 @@ io.on('connection', socket => {
 
         Promise.all([
           Game.deleteOne({ _id: game._id }).exec(),
-          Player.deleteMany({ hostId: game.hostId }).exec();
+          Player.deleteMany({ hostId: game.hostId }).exec()
         ]).then(([g, players]) => {
 
           console.log('Host has been disconnected. Game has been disconnected. Pin:', game.pin);
@@ -691,7 +686,7 @@ io.on('connection', socket => {
 
             Promise.all([
               Player.deleteOne({ playerId: socket.id }).exec(),
-              Game.findOne({ hostId: hostId, pin: pin }.exec()
+              Game.findOne({ hostId: hostId, pin: pin }).exec()
             ]).then(([p, gameA]) => {
 
               console.log('Player has disconnected.');
