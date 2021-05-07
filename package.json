@@ -16,7 +16,7 @@
     "express": "^4.17.1",
     "mongoose": "^5.7.14",
     "socket.io": "^2.3.0",
-    "underscore": "^1.9.1"
+    "underscore": "^1.12.1"
   },
   "devDependencies": {
     "nodemon": "^2.0.1"
